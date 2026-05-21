@@ -2054,10 +2054,14 @@ async function translateScopeInline(scope = document, options = {}) {
         : requestedScope;
     if (!options.force) {
         const currentTarget = getTranslationTarget(targetScope);
-        if (targetHasVisibleTranslation(currentTarget)) return "cached";
+        if (targetHasVisibleTranslation(currentTarget)) {
+            const quoteRendered = await translateQuoteTweetInPlace(targetScope);
+            return quoteRendered ? "translated" : "cached";
+        }
         if (currentTarget?.kind === "tweet" && findNativeTwitterTranslationControl(targetScope, "original")) {
             markNativeTwitterTranslation(targetScope);
-            return "cached";
+            const quoteRendered = await translateQuoteTweetInPlace(targetScope);
+            return quoteRendered ? "translated" : "cached";
         }
     }
 
@@ -2081,8 +2085,9 @@ async function translateScopeInline(scope = document, options = {}) {
 
     const nativeState = await showNativeTwitterTranslation(targetScope);
     if (nativeState) {
+        const quoteRendered = await translateQuoteTweetInPlace(targetScope);
         clearInlineTranslationStatus(targetScope);
-        return nativeState === "cached" ? "cached" : "translated";
+        return (nativeState === "cached" && !quoteRendered) ? "cached" : "translated";
     }
 
     const { url: tweetUrl } = findTweetUrl(targetScope);

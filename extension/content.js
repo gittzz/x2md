@@ -2845,6 +2845,28 @@ function getXProfileCaptureSettings() {
     return { range, days };
 }
 
+function getXProfileCaptureMenuSelectValue(settings = getXProfileCaptureSettings()) {
+    if (settings.range !== "days") return settings.range;
+    if ([7, 10, 30].includes(settings.days)) return `days:${settings.days}`;
+    return "custom";
+}
+
+function getXProfileCaptureSettingsFromMenu(menu) {
+    const select = menu?.querySelector?.('[data-x2md-role="profile-capture-range"]');
+    const customInput = menu?.querySelector?.('[data-x2md-role="profile-capture-days"]');
+    const value = select?.value || getXProfileCaptureMenuSelectValue();
+    if (value === "all" || value === "month" || value === "today") {
+        return { range: value, days: Math.max(1, parseInt(runtimeConfig?.profile_capture_custom_days, 10) || 7) };
+    }
+    if (value.startsWith("days:")) {
+        return { range: "days", days: Math.max(1, parseInt(value.split(":")[1], 10) || 7) };
+    }
+    return {
+        range: "days",
+        days: Math.max(1, parseInt(customInput?.value, 10) || 1),
+    };
+}
+
 function getXProfileCaptureRangeLabel(settings = getXProfileCaptureSettings()) {
     if (settings.range === "month") return "本月";
     if (settings.range === "all") return "全部";
@@ -2937,7 +2959,7 @@ function collectVisibleProfileTweets(profile, rangeStart) {
 }
 
 async function scrollAndCollectProfileTweets(profile, options = {}) {
-    const settings = getXProfileCaptureSettings();
+    const settings = options.settings || getXProfileCaptureSettings();
     const rangeStart = getXProfileCaptureRangeStart(settings);
     const maxScrolls = settings.range === "all" ? 260 : 90;
     const originalY = window.scrollY;
@@ -3079,7 +3101,7 @@ async function startXProfileCapture(options = {}) {
         displayName: getProfileDisplayName() || context.handle,
         profileUrl: context.profileUrl,
     };
-    const settings = getXProfileCaptureSettings();
+    const settings = options.settings || getXProfileCaptureSettings();
     const mode = context.isArticles ? "articles" : "tweets";
     const rangeLabel = mode === "articles" ? "全部文章" : getXProfileCaptureRangeLabel(settings);
 
@@ -3087,7 +3109,7 @@ async function startXProfileCapture(options = {}) {
         showToast(mode === "articles" ? "开始扫描博主文章列表…" : `开始扫描博主推文（${rangeLabel}）…`, "loading", null);
         const items = mode === "articles"
             ? await scrollAndCollectProfileArticles(profile)
-            : await scrollAndCollectProfileTweets(profile);
+            : await scrollAndCollectProfileTweets(profile, { settings });
         if (!items.length) {
             xProfileCaptureRunning = false;
             showToast(mode === "articles" ? "未发现可抓取文章" : "未发现符合范围的原创推文", "error", 4500);
@@ -3117,7 +3139,7 @@ function ensureXProfileCaptureMenu() {
     Object.assign(menu.style, {
         position: "fixed",
         zIndex: "2147483647",
-        minWidth: "220px",
+        minWidth: "300px",
         padding: "8px",
         borderRadius: "16px",
         border: "1px solid rgba(207,217,222,.9)",
@@ -3178,6 +3200,88 @@ function addProfileCaptureMenuItem(menu, label, subLabel, onClick, options = {})
     menu.appendChild(item);
 }
 
+function addProfileCaptureRangeControl(menu, settings, context, subtitleEl, mount = menu) {
+    const row = document.createElement("div");
+    Object.assign(row.style, {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: mount === menu ? "0 12px 10px" : "0",
+        width: context.isArticles ? "118px" : "184px",
+    });
+
+    const select = document.createElement("select");
+    select.dataset.x2mdRole = "profile-capture-range";
+    Object.assign(select.style, {
+        flex: "1",
+        height: "34px",
+        border: "1px solid rgba(207,217,222,.95)",
+        borderRadius: "10px",
+        background: "#fff",
+        color: "rgb(15,20,25)",
+        fontSize: "13px",
+        fontWeight: "700",
+        padding: "0 8px",
+        outline: "none",
+        cursor: context.isArticles ? "not-allowed" : "pointer",
+    });
+
+    const options = context.isArticles
+        ? [{ value: "all", label: "全部文章" }]
+        : [
+            { value: "today", label: "当日" },
+            { value: "days:7", label: "最近 7 天" },
+            { value: "days:10", label: "最近 10 天" },
+            { value: "days:30", label: "最近 30 天" },
+            { value: "month", label: "当月" },
+            { value: "all", label: "全部" },
+            { value: "custom", label: "自定义天数" },
+        ];
+
+    for (const optionConfig of options) {
+        const option = document.createElement("option");
+        option.value = optionConfig.value;
+        option.textContent = optionConfig.label;
+        select.appendChild(option);
+    }
+    select.value = context.isArticles ? "all" : getXProfileCaptureMenuSelectValue(settings);
+    select.disabled = context.isArticles;
+
+    const customInput = document.createElement("input");
+    customInput.dataset.x2mdRole = "profile-capture-days";
+    customInput.type = "number";
+    customInput.min = "1";
+    customInput.max = "3650";
+    customInput.value = settings.range === "days" ? String(settings.days) : "10";
+    Object.assign(customInput.style, {
+        width: "74px",
+        height: "32px",
+        border: "1px solid rgba(207,217,222,.95)",
+        borderRadius: "10px",
+        background: "#fff",
+        color: "rgb(15,20,25)",
+        fontSize: "13px",
+        fontWeight: "700",
+        padding: "0 8px",
+        outline: "none",
+        display: select.value === "custom" ? "block" : "none",
+    });
+
+    const sync = () => {
+        customInput.style.display = select.value === "custom" ? "block" : "none";
+        const current = context.isArticles ? { range: "all", days: 1 } : getXProfileCaptureSettingsFromMenu(menu);
+        subtitleEl.textContent = `${context.isArticles ? "博主文章" : "博主推文"} · ${context.isArticles ? "全部文章" : getXProfileCaptureRangeLabel(current)}`;
+    };
+    select.addEventListener("change", sync);
+    customInput.addEventListener("input", sync);
+    select.addEventListener("click", (event) => event.stopPropagation());
+    customInput.addEventListener("click", (event) => event.stopPropagation());
+
+    row.append(select, customInput);
+    mount.appendChild(row);
+    sync();
+}
+
 function showXProfileCaptureMenu(btn) {
     const context = getTwitterProfileContext();
     if (!context) return;
@@ -3189,11 +3293,18 @@ function showXProfileCaptureMenu(btn) {
     const modeLabel = context.isArticles ? "博主文章" : "博主推文";
     const rangeLabel = context.isArticles ? "全部文章" : getXProfileCaptureRangeLabel(settings);
     const title = document.createElement("div");
-    title.innerHTML = `<div style="font-size:15px;font-weight:800;padding:8px 12px 4px;">🐾 X2MD 批量抓取</div><div style="font-size:12px;color:rgb(83,100,113);padding:0 12px 8px;">${modeLabel} · ${rangeLabel}</div>`;
+    title.innerHTML = `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 12px 10px;"><div style="min-width:0;"><div style="font-size:15px;font-weight:800;padding:0 0 4px;">🐾 X2MD 批量抓取</div><div data-x2md-role="profile-capture-subtitle" style="font-size:12px;color:rgb(83,100,113);padding:0;">${modeLabel} · ${rangeLabel}</div></div><div data-x2md-role="profile-capture-control"></div></div>`;
     menu.appendChild(title);
+    const subtitleEl = title.querySelector('[data-x2md-role="profile-capture-subtitle"]');
+    const controlEl = title.querySelector('[data-x2md-role="profile-capture-control"]');
+    addProfileCaptureRangeControl(menu, settings, context, subtitleEl, controlEl);
 
-    addProfileCaptureMenuItem(menu, "开始抓取", "自动跳过本地记录中已抓取的推文/文章", () => startXProfileCapture({ forceFull: false }));
-    addProfileCaptureMenuItem(menu, "重新完整抓取", "不按本地记录跳过，适合重建 Markdown 文件", () => startXProfileCapture({ forceFull: true }), { danger: true });
+    addProfileCaptureMenuItem(menu, "开始抓取", "自动跳过本地记录中已抓取的推文/文章", () => {
+        startXProfileCapture({ forceFull: false, settings: getXProfileCaptureSettingsFromMenu(menu) });
+    });
+    addProfileCaptureMenuItem(menu, "重新完整抓取", "不按本地记录跳过，适合重建 Markdown 文件", () => {
+        startXProfileCapture({ forceFull: true, settings: getXProfileCaptureSettingsFromMenu(menu) });
+    }, { danger: true });
     addProfileCaptureMenuItem(menu, "打开设置", "修改时间范围和保存路径", () => {
         chrome.runtime.sendMessage({ action: "open_options" });
     });

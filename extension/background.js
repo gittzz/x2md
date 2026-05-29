@@ -680,6 +680,7 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
     const articleMedia = extractArticleMediaVideos(tweet || result);
     videos.push(...articleMedia.videos);
     videoDurations.push(...articleMedia.videoDurations);
+    const graphqlArticle = extractArticleMarkdownFromGraphQL(tweet || result);
 
     const author = userLegacy?.name || "";
     const handle = userLegacy?.screen_name ? "@" + userLegacy.screen_name : "";
@@ -694,6 +695,7 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
         author,
         handle,
         published,
+        x_article_api: graphqlArticle,
     };
 
     if (!options.skipQuote) {
@@ -789,6 +791,7 @@ async function fetchFullTweetData(tweetData) {
         published: apiResult.published || tweetData.published,
         thread_tweets: apiResult.thread_tweets && apiResult.thread_tweets.length > 0 ? apiResult.thread_tweets : (tweetData.thread_tweets || []),
         quote_tweet: apiResult.quote_tweet || tweetData.quote_tweet || null,
+        x_article_api: apiResult.x_article_api || tweetData.x_article_api || null,
     };
 }
 
@@ -846,7 +849,9 @@ async function resolveCopyContentText(copyData = {}) {
 
     if (articleUrl) {
         const statusUrl = normalizeArticleToStatusUrl(articleUrl);
-        const noteResult = (statusUrl ? await fetchNoteContent(statusUrl) : null) || await fetchNoteContent(articleUrl);
+        const noteResult = enrichedData.x_article_api ||
+            (statusUrl ? await fetchNoteContent(statusUrl) : null) ||
+            await fetchNoteContent(articleUrl);
         const payload = buildCopyPayloadFromNoteResult(noteResult, enrichedData.text || copyData.text || "");
         if (payload?.text) return { ...payload, source: "x_article", articleUrl, statusUrl };
     }
@@ -921,8 +926,11 @@ async function fetchProfileArticleForBatch(articleData = {}) {
         articleUrl = articleUrl || extractArticleUrlFromText(enrichedData.text);
     }
 
-    // X 的 /article/ 页面经常缺少完整媒体上下文；优先用对应 /status/ 页面提取。
-    let noteResult = sourceTweetUrl ? await fetchNoteContent(sourceTweetUrl) : null;
+    // 优先使用 GraphQL 中的 Article 富文本，避免额外打开后台标签；失败再走渲染兜底。
+    let noteResult = enrichedData.x_article_api || null;
+    if (!noteResult || !noteResult.content) {
+        noteResult = sourceTweetUrl ? await fetchNoteContent(sourceTweetUrl) : null;
+    }
     if ((!noteResult || !noteResult.content) && articleUrl) {
         noteResult = await fetchNoteContent(articleUrl);
     }
@@ -941,7 +949,7 @@ async function fetchProfileArticleForBatch(articleData = {}) {
         text: noteResult.plainText || "",
         images: noteResult.images || [],
         videos: noteResult.videos || [],
-        published: enrichedData.published || articleData.published || "",
+        published: noteResult.published || enrichedData.published || articleData.published || "",
     };
 }
 
@@ -1011,7 +1019,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     let enrichedData = await fetchFullTweetData(data);
 
                     const noteStatusUrl = normalizeArticleToStatusUrl(data.note_article_url);
-                    const noteResult = (noteStatusUrl ? await fetchNoteContent(noteStatusUrl) : null) || await fetchNoteContent(data.note_article_url);
+                    const noteResult = enrichedData.x_article_api ||
+                        (noteStatusUrl ? await fetchNoteContent(noteStatusUrl) : null) ||
+                        await fetchNoteContent(data.note_article_url);
                     if (noteResult && noteResult.content) {
                         // 剔除已被内联插入成功的外联原图，其余在数组末尾透传以防丢失
                         const mergedImages = [];
@@ -1051,7 +1061,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         console.log("[x2md] 在推文提取文本中发现长文(Note)链接，切换提取模式：", articleUrl);
 
                         const articleStatusUrl = normalizeArticleToStatusUrl(articleUrl);
-                        const noteResult = (articleStatusUrl ? await fetchNoteContent(articleStatusUrl) : null) || await fetchNoteContent(articleUrl);
+                        const noteResult = data.x_article_api ||
+                            (articleStatusUrl ? await fetchNoteContent(articleStatusUrl) : null) ||
+                            await fetchNoteContent(articleUrl);
                         if (noteResult && noteResult.content) {
                             // 同样去除已被内联插入的长文明图
                             const mergedImages = [];

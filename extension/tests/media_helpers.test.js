@@ -142,3 +142,56 @@ test("fillArticleVideoPlaceholders collapses only adjacent identical holders", (
     ].join("\n"),
   );
 });
+
+test("extractArticleMarkdownFromGraphQL converts X article rich content and media", () => {
+  const {
+    extractArticleMarkdownFromGraphQL,
+  } = require("../media_helpers.js");
+
+  const result = {
+    article: {
+      article_results: {
+        result: {
+          title: "Article Title",
+          metadata: { first_published_at_secs: 1770000000 },
+          cover_media: {
+            media_info: { original_img_url: "https://pbs.twimg.com/media/cover.jpg" },
+          },
+          content_state: {
+            blocks: [
+              { key: "a", type: "unstyled", text: "Hello world", inlineStyleRanges: [{ offset: 6, length: 5, style: "BOLD" }] },
+              { key: "b", type: "atomic", text: "", entityRanges: [{ key: 0, offset: 0, length: 1 }] },
+              { key: "c", type: "unordered-list-item", text: "one" },
+            ],
+            entityMap: [
+              {
+                key: "0",
+                value: {
+                  type: "MEDIA",
+                  data: { mediaItems: [{ mediaId: "222", mediaCategory: "DraftTweetImage" }] },
+                },
+              },
+            ],
+          },
+          media_entities: [
+            {
+              media_id: "222",
+              media_info: { original_img_url: "https://pbs.twimg.com/media/body.png" },
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const article = extractArticleMarkdownFromGraphQL(result);
+  assert.equal(article.title, "Article Title");
+  assert.match(article.content, /!\[]\(https:\/\/pbs\.twimg\.com\/media\/cover\.jpg\?format=jpg&name=orig\)/);
+  assert.match(article.content, /Hello \*\*world\*\*/);
+  assert.match(article.content, /!\[]\(https:\/\/pbs\.twimg\.com\/media\/body\.png\?format=png&name=orig\)/);
+  assert.match(article.content, /- one/);
+  assert.deepEqual(article.images, [
+    "https://pbs.twimg.com/media/cover.jpg?format=jpg&name=orig",
+    "https://pbs.twimg.com/media/body.png?format=png&name=orig",
+  ]);
+});

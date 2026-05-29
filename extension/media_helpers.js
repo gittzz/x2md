@@ -16,23 +16,174 @@
         return mp4Variants[0];
     }
 
+    function getArticleResult(result) {
+        return result?.article?.article_results?.result ||
+            result?.tweet?.article?.article_results?.result ||
+            result?.result?.article?.article_results?.result ||
+            null;
+    }
+
+    function normalizeArticleImageUrl(url, name = "orig") {
+        const raw = String(url || "").trim();
+        if (!raw) return "";
+        if (raw.includes("?format=") || raw.includes("&format=")) {
+            try {
+                const parsed = new URL(raw);
+                parsed.searchParams.set("name", name);
+                return parsed.href;
+            } catch (error) {
+                return raw.replace(/name=[^&]+/, `name=${name}`);
+            }
+        }
+
+        const extMatch = raw.match(/\.([a-zA-Z0-9]+)(?:$|[?#])/);
+        if (extMatch) {
+            const base = raw.split(/[?#]/)[0];
+            return `${base}?format=${extMatch[1]}&name=${name}`;
+        }
+
+        const equalsIndex = raw.lastIndexOf("=");
+        if (equalsIndex >= 0) return `${raw.slice(0, equalsIndex + 1)}${name}`;
+        return raw;
+    }
+
+    function articleMediaInfoToMarkdown(mediaInfo, images) {
+        const imageUrl = normalizeArticleImageUrl(mediaInfo?.original_img_url || mediaInfo?.url || "");
+        if (!imageUrl) return "";
+        if (Array.isArray(images) && !images.includes(imageUrl)) images.push(imageUrl);
+        return `![](${imageUrl})`;
+    }
+
+    function buildArticleMediaLookup(article) {
+        const lookup = new Map();
+        for (const mediaEntity of Array.isArray(article?.media_entities) ? article.media_entities : []) {
+            const mediaId = String(mediaEntity?.media_id || mediaEntity?.media_key || "");
+            if (mediaId) lookup.set(mediaId, mediaEntity);
+        }
+        return lookup;
+    }
+
+    function normalizeEntityMap(entityMap) {
+        if (Array.isArray(entityMap)) {
+            return new Map(entityMap
+                .map((entity, index) => [String(entity?.key ?? index), entity?.value])
+                .filter(([key, value]) => key !== "" && value));
+        }
+        if (entityMap && typeof entityMap === "object") {
+            return new Map(Object.entries(entityMap).map(([key, value]) => [String(key), value?.value || value]));
+        }
+        return new Map();
+    }
+
+    function applyArticleInlineStyles(text, inlineStyleRanges) {
+        let result = String(text || "");
+        const ranges = Array.isArray(inlineStyleRanges) ? inlineStyleRanges : [];
+        for (const range of [...ranges].sort((left, right) => (right.offset || 0) - (left.offset || 0))) {
+            const offset = Number(range?.offset || 0);
+            const length = Number(range?.length || 0);
+            if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
+            const style = String(range?.style || "").toUpperCase();
+            const marker = style.startsWith("BOLD") ? "**" : (style.startsWith("ITALIC") ? "*" : "");
+            if (!marker) continue;
+            result = result.slice(0, offset) + marker + result.slice(offset, offset + length) + marker + result.slice(offset + length);
+        }
+        return result;
+    }
+
+    function renderArticleEntity(entity, mediaLookup, images) {
+        const type = String(entity?.type || "").toUpperCase();
+        const data = entity?.data || {};
+        if (type === "DIVIDER") return "---";
+        if (type !== "MEDIA") return "";
+
+        const lines = [];
+        for (const item of Array.isArray(data.mediaItems) ? data.mediaItems : []) {
+            const mediaEntity = mediaLookup.get(String(item?.mediaId || item?.media_id || ""));
+            const mediaInfo = mediaEntity?.media_info;
+            if (mediaInfo?.variants) {
+                const bestVariant = selectBestMp4Variant(mediaInfo.variants);
+                if (bestVariant?.url) lines.push(`[MEDIA_VIDEO_URL:${bestVariant.url}]`);
+                continue;
+            }
+            const markdown = articleMediaInfoToMarkdown(mediaInfo, images);
+            if (markdown) lines.push(markdown);
+        }
+        if (data.caption && lines.length) lines.push(String(data.caption).trim());
+        return lines.join("\n\n");
+    }
+
+    function renderArticleBlock(block, entities, mediaLookup, images) {
+        const type = String(block?.type || "unstyled");
+        const entityParts = [];
+        for (const range of Array.isArray(block?.entityRanges) ? block.entityRanges : []) {
+            const entity = entities.get(String(range?.key));
+            const rendered = renderArticleEntity(entity, mediaLookup, images);
+            if (rendered) entityParts.push(rendered);
+        }
+
+        const text = applyArticleInlineStyles(block?.text || "", block?.inlineStyleRanges).trim();
+        if (type === "atomic") return entityParts.join("\n\n");
+        if (type === "header-one") return text ? `# ${text}` : "";
+        if (type === "header-two") return text ? `## ${text}` : "";
+        if (type === "header-three") return text ? `### ${text}` : "";
+        if (type === "unordered-list-item") return text ? `- ${text}` : "";
+        if (type === "ordered-list-item") return text ? `1. ${text}` : "";
+        if (type === "blockquote") return text ? text.split("\n").map((line) => `> ${line}`).join("\n") : "";
+        if (type === "code-block") return text ? `\`\`\`\n${text}\n\`\`\`` : "";
+        return [...entityParts, text].filter(Boolean).join("\n\n");
+    }
+
+    function extractArticleMarkdownFromGraphQL(result) {
+        const article = getArticleResult(result);
+        if (!article?.content_state?.blocks) return null;
+
+        const images = [];
+        const coverMarkdown = articleMediaInfoToMarkdown(article?.cover_media?.media_info, images);
+        const entities = normalizeEntityMap(article.content_state.entityMap);
+        const mediaLookup = buildArticleMediaLookup(article);
+        const blocks = Array.isArray(article.content_state.blocks) ? article.content_state.blocks : [];
+        const body = blocks
+            .map((block) => renderArticleBlock(block, entities, mediaLookup, images))
+            .filter((part) => String(part || "").trim())
+            .join("\n\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+
+        const content = [coverMarkdown, body].filter(Boolean).join("\n\n").trim();
+        if (!content) return null;
+
+        const title = String(article.title || "").trim();
+        const publishedSecs = article?.metadata?.first_published_at_secs;
+        const published = publishedSecs ? new Date(Number(publishedSecs) * 1000).toISOString() : "";
+        return {
+            title,
+            content,
+            plainText: [title, blocks.map((block) => block?.text || "").filter(Boolean).join("\n\n")]
+                .filter(Boolean)
+                .join("\n\n"),
+            images: Array.from(new Set(images)),
+            videos: Array.from(content.matchAll(/\[MEDIA_VIDEO_URL:(.+?)\]/g), (match) => match[1]),
+            published,
+            source: "graphql_article",
+        };
+    }
+
     function extractArticleMediaVideos(result) {
-        const article = result?.article?.article_results?.result;
+        const article = getArticleResult(result);
         if (!article) {
             return { videos: [], videoDurations: [] };
         }
 
         const referencedVideoIds = new Set();
         const entityMap = article?.content_state?.entityMap;
-        if (Array.isArray(entityMap)) {
-            for (const entity of entityMap) {
-                const mediaItems = entity?.value?.data?.mediaItems;
-                if (!Array.isArray(mediaItems)) continue;
+        const entities = normalizeEntityMap(entityMap);
+        for (const entity of entities.values()) {
+            const mediaItems = entity?.data?.mediaItems;
+            if (!Array.isArray(mediaItems)) continue;
 
-                for (const item of mediaItems) {
-                    if (item?.mediaCategory === "AmplifyVideo" && item?.mediaId) {
-                        referencedVideoIds.add(String(item.mediaId));
-                    }
+            for (const item of mediaItems) {
+                if (item?.mediaCategory === "AmplifyVideo" && item?.mediaId) {
+                    referencedVideoIds.add(String(item.mediaId));
                 }
             }
         }
@@ -88,8 +239,10 @@
 
     const exported = {
         fillArticleVideoPlaceholders,
+        extractArticleMarkdownFromGraphQL,
         extractArticleMediaVideos,
         getVariantBitrate,
+        normalizeArticleImageUrl,
         selectBestMp4Variant,
     };
 

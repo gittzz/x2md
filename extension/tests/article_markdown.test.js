@@ -187,6 +187,25 @@ test("extractArticleMarkdown keeps unlabeled code fences in the default format",
     );
 });
 
+test("extractArticleMarkdown keeps X article copy-button code blocks", () => {
+    const tree = elementNode("div", {
+        style: { display: "block" },
+        children: [
+            elementNode("button", {
+                children: [textNode("复制到剪贴板")],
+            }),
+            elementNode("div", {
+                children: [textNode("npm i -g openskills")],
+            }),
+        ],
+    });
+
+    assert.equal(
+        extractArticleMarkdown(tree, { getComputedStyle }),
+        "```\nnpm i -g openskills\n```",
+    );
+});
+
 test("extractArticleMarkdown skips X article promo and action chrome", () => {
     const tree = elementNode("div", {
         children: [

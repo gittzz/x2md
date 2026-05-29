@@ -76,6 +76,7 @@
 
         const text = getNodeText(element).trim();
         if (text === "Download") return true;
+        if (/^(复制到剪贴板|Copy code|Copy to clipboard)$/i.test(text)) return true;
         if (text === "查看图片描述" || text === "View image description" || text === "ALT") return true;
         if (/^(想发布自己的文章|Want to publish your own article)/i.test(text) ||
             /^升级为\s*Premium$/i.test(text)) return true;
@@ -203,6 +204,36 @@
         return `\n\`\`\`${infoString}\n${code}\n\`\`\`\n`;
     }
 
+    function collectTextWithoutButtons(node) {
+        if (!node) return "";
+        if (node.nodeType === 3) return node.textContent || "";
+        if (node.nodeType !== 1) return "";
+        const tag = getTagName(node);
+        if (tag === "button" || tag === "svg") return "";
+        return Array.from(node.childNodes || [])
+            .map(collectTextWithoutButtons)
+            .join("");
+    }
+
+    function extractTwitterArticleCodeBlockMarkdown(element) {
+        const text = getNodeText(element).trim();
+        if (!/^(复制到剪贴板|Copy code|Copy to clipboard)/i.test(text)) return "";
+
+        let hasCopyButton = false;
+        walkElementTree(element, (node) => {
+            if (hasCopyButton || getTagName(node) !== "button") return;
+            const label = getNodeText(node).trim();
+            hasCopyButton = /^(复制到剪贴板|Copy code|Copy to clipboard)$/i.test(label);
+        });
+        if (!hasCopyButton) return "";
+
+        const code = collectTextWithoutButtons(element)
+            .replace(/^(复制到剪贴板|Copy code|Copy to clipboard)\s*/i, "")
+            .replace(/\u200b/g, "")
+            .trimEnd();
+        return code ? formatCodeFence(code) : "";
+    }
+
     function normalizeCodeLanguageLabel(node) {
         const text = getNodeText(node).replace(/\s+/g, " ").trim().toLowerCase();
         if (!text || !CODE_LANGUAGE_PATTERN.test(text)) return "";
@@ -302,6 +333,9 @@
             const code = element.innerText || element.textContent || "";
             return formatCodeFence(code);
         }
+
+        const twitterCodeBlock = extractTwitterArticleCodeBlockMarkdown(element);
+        if (twitterCodeBlock) return twitterCodeBlock;
 
         let markdown = convertChildNodesToMarkdown(element, options);
 

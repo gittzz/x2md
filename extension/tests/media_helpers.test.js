@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  extractArticleMarkdownFromGraphQL,
   extractArticleMediaVideos,
   fillArticleVideoPlaceholders,
 } = require("../media_helpers.js");
@@ -144,10 +145,6 @@ test("fillArticleVideoPlaceholders collapses only adjacent identical holders", (
 });
 
 test("extractArticleMarkdownFromGraphQL converts X article rich content and media", () => {
-  const {
-    extractArticleMarkdownFromGraphQL,
-  } = require("../media_helpers.js");
-
   const result = {
     article: {
       article_results: {
@@ -194,4 +191,66 @@ test("extractArticleMarkdownFromGraphQL converts X article rich content and medi
     "https://pbs.twimg.com/media/cover.jpg?format=jpg&name=orig",
     "https://pbs.twimg.com/media/body.png?format=png&name=orig",
   ]);
+});
+
+test("extractArticleMarkdownFromGraphQL keeps atomic code block entities", () => {
+  const result = {
+    article: {
+      article_results: {
+        result: {
+          title: "Code Article",
+          content_state: {
+            blocks: [
+              { key: "a", type: "unstyled", text: "Install:" },
+              { key: "b", type: "atomic", text: " ", entityRanges: [{ key: 0, offset: 0, length: 1 }] },
+            ],
+            entityMap: [
+              {
+                key: "0",
+                value: {
+                  type: "CODE_BLOCK",
+                  data: {
+                    text: "npm i -g openskills",
+                    language: "bash",
+                  },
+                },
+              },
+            ],
+          },
+          media_entities: [],
+        },
+      },
+    },
+  };
+
+  const article = extractArticleMarkdownFromGraphQL(result);
+  assert.match(article.content, /Install:/);
+  assert.match(article.content, /```bash\nnpm i -g openskills\n```/);
+});
+
+test("extractArticleMarkdownFromGraphQL keeps Draft code-block blocks", () => {
+  const result = {
+    article: {
+      article_results: {
+        result: {
+          title: "Code Article",
+          content_state: {
+            blocks: [
+              {
+                key: "a",
+                type: "code-block",
+                text: "ln -s ~/.agent/skills ~/.gemini/antigravity/skills",
+                data: { language: "sh" },
+              },
+            ],
+            entityMap: [],
+          },
+          media_entities: [],
+        },
+      },
+    },
+  };
+
+  const article = extractArticleMarkdownFromGraphQL(result);
+  assert.match(article.content, /```sh\nln -s ~\/.agent\/skills ~\/.gemini\/antigravity\/skills\n```/);
 });

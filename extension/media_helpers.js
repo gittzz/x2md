@@ -90,10 +90,97 @@
         return result;
     }
 
+    function cleanArticleCodeText(value) {
+        return String(value || "")
+            .replace(/\u200b/g, "")
+            .replace(/\r\n/g, "\n")
+            .trimEnd();
+    }
+
+    function formatArticleCodeFence(code, language = "") {
+        const cleanCode = cleanArticleCodeText(code);
+        if (!cleanCode) return "";
+        const cleanLanguage = String(language || "").trim();
+        return `\`\`\`${cleanLanguage}\n${cleanCode.replace(/```/g, "``\u200b`")}\n\`\`\``;
+    }
+
+    function readArticleCodeText(value, depth = 0) {
+        if (!value || depth > 3) return "";
+        if (typeof value === "string") return value;
+        if (Array.isArray(value)) {
+            return value
+                .map((item) => readArticleCodeText(item, depth + 1))
+                .filter(Boolean)
+                .join("\n");
+        }
+        if (typeof value !== "object") return "";
+
+        const directKeys = [
+            "code", "codeText", "content", "contents", "text",
+            "plainText", "rawText", "value", "source",
+        ];
+        for (const key of directKeys) {
+            if (typeof value[key] === "string" && value[key].trim()) return value[key];
+        }
+
+        const nestedKeys = ["codeBlock", "code_block", "codeSnippet", "snippet", "pre", "body", "data"];
+        for (const key of nestedKeys) {
+            const nested = readArticleCodeText(value[key], depth + 1);
+            if (nested) return nested;
+        }
+
+        if (Array.isArray(value.blocks)) {
+            return value.blocks
+                .map((block) => readArticleCodeText(block, depth + 1) || block?.text || "")
+                .filter(Boolean)
+                .join("\n");
+        }
+
+        return "";
+    }
+
+    function readArticleCodeLanguage(data = {}) {
+        return String(
+            data.language ||
+            data.lang ||
+            data.syntax ||
+            data.codeLanguage ||
+            data?.codeBlock?.language ||
+            data?.code_block?.language ||
+            ""
+        ).trim();
+    }
+
+    function isArticleCodeEntity(entity) {
+        const type = String(entity?.type || "").toUpperCase();
+        const data = entity?.data || {};
+        return type.includes("CODE") ||
+            type.includes("PRE") ||
+            type.includes("MONO") ||
+            typeof data.code === "string" ||
+            typeof data.codeText === "string" ||
+            typeof data.codeBlock?.text === "string" ||
+            typeof data.code_block?.text === "string";
+    }
+
+    function isArticleCodeBlock(block) {
+        const type = String(block?.type || "").toLowerCase();
+        const data = block?.data || {};
+        return type.includes("code") ||
+            type === "pre" ||
+            data.language ||
+            data.codeLanguage ||
+            data.isCodeBlock === true ||
+            data.codeBlock === true;
+    }
+
     function renderArticleEntity(entity, mediaLookup, images) {
         const type = String(entity?.type || "").toUpperCase();
         const data = entity?.data || {};
         if (type === "DIVIDER") return "---";
+        if (isArticleCodeEntity(entity)) {
+            return formatArticleCodeFence(readArticleCodeText(data), readArticleCodeLanguage(data));
+        }
         if (type !== "MEDIA") return "";
 
         const lines = [];
@@ -122,6 +209,9 @@
         }
 
         const text = applyArticleInlineStyles(block?.text || "", block?.inlineStyleRanges).trim();
+        if (isArticleCodeBlock(block)) {
+            return formatArticleCodeFence(block?.text || "", readArticleCodeLanguage(block?.data || {}));
+        }
         if (type === "atomic") return entityParts.join("\n\n");
         if (type === "header-one") return text ? `# ${text}` : "";
         if (type === "header-two") return text ? `## ${text}` : "";

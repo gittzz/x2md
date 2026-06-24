@@ -1,0 +1,26 @@
+[
+  {
+    "platform": "LINUX DO",
+    "type": "article",
+    "article_title": "LINUX DO topic",
+    "article_content": "论坛帖子正文",
+    "url": "https://linux.do/t/topic/1",
+    "handle": "linuxdo"
+  },
+  {
+    "platform": "飞书",
+    "type": "article",
+    "article_title": "飞书文档",
+    "article_content": "飞书 block 正文",
+    "url": "https://example.feishu.cn/wiki/test",
+    "handle": "feishu"
+  },
+  {
+    "platform": "微信公众号",
+    "type": "article",
+    "article_title": "公众号文章",
+    "article_content": "公众号正文\n\n```\ncode\n```",
+    "url": "https://mp.weixin.qq.com/s/test",
+    "handle": "wechat"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "mode": "articles",
+  "profile": { "handle": "alice", "displayName": "Alice", "profileUrl": "https://x.com/alice" },
+  "items": [
+    {
+      "url": "https://x.com/alice/article/200",
+      "published": "2026-05-28T08:00:00Z",
+      "article_title": "Long Note",
+      "article_content": "文章正文",
+      "images": ["https://pbs.twimg.com/media/profile-article.jpg?format=jpg&name=small"]
+    }
+  ]
+}

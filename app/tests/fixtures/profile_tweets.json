@@ -1,0 +1,9 @@
+{
+  "mode": "tweets",
+  "range_label": "当日",
+  "profile": { "handle": "alice", "displayName": "Alice", "profileUrl": "https://x.com/alice" },
+  "items": [
+    { "url": "https://x.com/alice/status/201", "published": "2026-05-29T08:00:00Z", "text": "profile tweet one", "images": [], "videos": [] },
+    { "url": "https://x.com/alice/status/202", "published": "2026-05-29T07:00:00Z", "text": "profile tweet two", "images": [], "videos": [] }
+  ]
+}

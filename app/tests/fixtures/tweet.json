@@ -1,0 +1,12 @@
+{
+  "type": "tweet",
+  "text": "单条 Tweet 正文",
+  "url": "https://x.com/alice/status/100",
+  "handle": "@alice",
+  "author": "Alice",
+  "published": "2026-05-29T08:00:00Z",
+  "images": ["https://pbs.twimg.com/media/one.jpg?format=jpg&name=small"],
+  "image_alt_texts": {
+    "https://pbs.twimg.com/media/one.jpg?format=jpg&name=orig": "一张测试图片"
+  }
+}

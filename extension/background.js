@@ -11,6 +11,7 @@ importScripts("media_helpers.js");
 importScripts("twitter_graphql.js");
 importScripts("twitter_graphql.js");
 importScripts("translation_helpers.js");
+importScripts("save_response.js");
 
 const SERVER_BASE = "http://127.0.0.1:9527";
 const TWITTER_BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
@@ -1248,8 +1249,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data)
                 });
-                const json = await resp.json();
-                sendResponse({ success: json.success !== false, result: json });
+                sendResponse(await parseSaveResponse(resp));
 
             } catch (err) {
                 console.error("[x2md] 后台处理或请求失败：", err);
@@ -1319,8 +1319,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data)
                 });
-                const json = await resp.json();
-                sendResponse({ success: json.success !== false, result: json });
+                sendResponse(await parseSaveResponse(resp));
             } catch (err) {
                 sendResponse({ success: false, error: err.message || String(err) });
             }

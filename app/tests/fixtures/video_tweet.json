@@ -1,0 +1,8 @@
+{
+  "type": "tweet",
+  "text": "视频 Tweet",
+  "url": "https://x.com/alice/status/104",
+  "handle": "@alice",
+  "videos": ["https://video.twimg.com/ext_tw_video/104/pu/vid/avc1/test.mp4"],
+  "download_video": false
+}

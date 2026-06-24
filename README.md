@@ -33,19 +33,18 @@
 ### 第 1 步：下载客户端（基于 GitHub Release）
 
 - 打开 [Releases](https://github.com/izscc/x2md/releases/latest)
-- 当前最新版本：[`v1.1.17`](https://github.com/izscc/x2md/releases/tag/v1.1.17)
+- 当前最新版本：[`v2.0.0-lite`](https://github.com/izscc/x2md/releases/tag/v2.0.0-lite)
 - 下载对应平台包：
-  - Mac: [`X2MD_Mac.zip`](https://github.com/izscc/x2md/releases/download/v1.1.17/X2MD_Mac.zip)
-  - Windows: [`X2MD_Windows.zip`](https://github.com/izscc/x2md/releases/download/v1.1.17/X2MD_Windows.zip)
-  - 扩展: [`X2MD_Extension.zip`](https://github.com/izscc/x2md/releases/download/v1.1.17/X2MD_Extension.zip)
+  - Mac: [`X2MD_Mac.zip`](https://github.com/izscc/x2md/releases/download/v2.0.0-lite/X2MD_Mac.zip)
+  - Windows: [`X2MD_Windows.zip`](https://github.com/izscc/x2md/releases/download/v2.0.0-lite/X2MD_Windows.zip)
+  - 扩展: [`X2MD_Extension.zip`](https://github.com/izscc/x2md/releases/download/v2.0.0-lite/X2MD_Extension.zip)
 
-### 第 2 步：首次运行并完成向导
+### 第 2 步：首次运行并完成设置
 
 1. 解压并运行 `X2MD.app`（Mac）或 `X2MD.exe`（Windows）。
-2. 按向导设置：
-   - Markdown 保存目录
-   - 视频保存目录
-3. 向导完成后，服务会在本地启动（默认 `127.0.0.1:9527`）。
+2. Mac v2 使用 Electrobun 设置页；Windows 迁移期仍使用 legacy 向导。
+3. 设置 Markdown 保存目录和视频保存目录。
+4. 设置保存后，本地服务会启动或继续运行（默认 `127.0.0.1:9527`）。
 
 ### 第 3 步：安装 Chrome 扩展
 
@@ -71,7 +70,7 @@
 
 ## 常用配置（进阶）
 
-配置文件为根目录的 `config.json`，常用字段：
+配置文件位于用户应用目录：Mac 为 `~/Library/Application Support/X2MD/config.json`，Windows legacy 为 `%APPDATA%/X2MD/config.json`。常用字段：
 
 - `save_paths`: Markdown 输出目录列表
 - `custom_save_paths`: X/Twitter 书签悬停菜单的命名保存路径，例如 `[{ "name": "生图类", "path": "/你的/Obsidian/子目录" }]`
@@ -134,47 +133,56 @@
 
 ## 本地开发与打包
 
-安装依赖：
+Mac v2 默认使用 Electrobun + Bun：
 
 ```bash
-pip3 install -r requirements.txt
+bun install
+bun run dev
 ```
 
-开发运行：
+无 Bun 时可用 Node 跑本地 API 开发入口：
 
 ```bash
-# 向导 + 托盘 + 服务
-python3 tray_app.py
-
-# 仅服务
-python3 server.py
+npm run serve:node
 ```
 
-打包说明见 [`BUILD.md`](./BUILD.md)。
-CI 工作流见 [`.github/workflows/build.yml`](./.github/workflows/build.yml)。
+测试：
+
+```bash
+npm run check
+npm run smoke:mac  # 构建后运行，验证打包 App 的 /ping + /save + /status + /log + /open
+npm run acceptance:mac:auto
+```
+
+Python 桌面端仍作为 legacy 回滚路径保留。打包说明见 [`BUILD.md`](./BUILD.md)。
+CI 工作流见 [`.github/workflows/build.yml`](./.github/workflows/build.yml)。Mac 人工验收清单见 [`docs/acceptance/electrobun-mac-manual-checklist.md`](./docs/acceptance/electrobun-mac-manual-checklist.md)。
 
 ## 项目结构
 
 ```text
 .
-├── server.py               # 本地 HTTP 服务（/ping /config /save）
-├── tray_app.py             # 桌面托盘入口
-├── setup_wizard.py         # 首次配置向导
+├── app/                    # Electrobun/Bun v2 桌面端
+│   ├── main/               # 本地 API、托盘、自启、桌面入口
+│   ├── core/               # 配置、Markdown、文件名、批量抓取保存核心
+│   ├── ui/settings/        # 系统 WebView 设置页
+│   └── tests/              # TypeScript 迁移测试
 ├── extension/              # Chrome 扩展（MV3）
-│   ├── dom_utils.js        # 共享 DOM 工具函数
-│   ├── article_markdown.js # X Article 富文本转 Markdown
-│   ├── discourse.js        # LINUX DO 话题帖子提取
-│   ├── feishu.js           # 飞书 wiki/docx block 解析
-│   ├── wechat.js           # 微信公众号文章提取
-│   ├── site_actions.js     # 站点识别与悬浮按钮配置
-│   ├── content.js          # 内容脚本主入口
-│   ├── background.js       # Service Worker（API 策略）
-│   └── tests/              # Node.js 单元测试
+├── server.py               # Python legacy 本地服务
+├── tray_app.py             # Python legacy 托盘入口
+├── setup_wizard.py         # Python legacy 首次配置向导
+├── electrobun.config.ts    # Electrobun 构建配置
 ├── BUILD.md                # 打包说明
 └── docs/images/            # README 配图
 ```
 
 ## 更新日志
+
+### v2.0.0-lite（2026-06-25）
+
+- 新增 Electrobun + Bun/TypeScript 桌面端骨架，Mac 默认迁移到系统 WebView + 本地 API 服务。
+- 迁移 `/ping`、`/config`、`/save`、`/profile-capture`、`/autostart`、`/status`、`/log` 兼容 API 和核心 Markdown 保存逻辑。
+- 设置页支持状态摘要、日志尾部查看、打开保存目录/视频目录/扩展目录、开机自启和可选保存成功通知；Mac 包会内置 `extension/` 目录。
+- 新增 TypeScript 迁移测试、golden fixtures、端口占用测试、启动耗时测试、扩展健康测试和 Mac 打包产物 `/ping + /save + /status + /log + /open` 冒烟测试；Windows 暂保留 Python legacy 包。
 
 ### v1.1.17（2026-06-24）
 

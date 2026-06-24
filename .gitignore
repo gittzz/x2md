@@ -6,9 +6,13 @@ __pycache__/
 *.pyo
 *.egg-info/
 
+# Node / Bun
+node_modules/
+
 # PyInstaller
 build/
 dist/
+artifacts/
 *.spec.bak
 *.pkg
 

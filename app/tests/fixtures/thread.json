@@ -1,0 +1,10 @@
+{
+  "type": "tweet",
+  "text": "主推正文",
+  "url": "https://x.com/alice/status/101",
+  "handle": "@alice",
+  "thread_tweets": [
+    { "text": "续推第一条", "images": [], "videos": [] },
+    { "text": "续推第二条", "images": ["https://pbs.twimg.com/media/thread.jpg?name=small"], "videos": [] }
+  ]
+}

@@ -1,67 +1,95 @@
 # X2MD 构建指南
 
-## 环境准备
+## 默认架构：Electrobun + Bun（Mac）
 
 ```bash
-# 安装 Python 依赖
-pip3 install -r requirements.txt
+# 安装 Bun 后
+bun install
 
-# 安装打包工具
-pip3 install pyinstaller
+# 开发运行
+bun run dev
+
+# 生产构建（当前平台；Mac runner 产出 .app）
+bun run build:mac
+
+# 打包产物冒烟测试：启动 bundle，检查 /ping 耗时，并通过 /save 写入 Markdown、通过 /open dry-run 覆盖桌面入口
+npm run smoke:mac
+npm run smoke:mac:startup-time  # 复用缓存后的第二次启动到 /ping ≤ 1 秒
+
+# 端口占用提示冒烟测试
+npm run smoke:mac:port-conflict
+
+# 扩展包健康检查兼容性
+npm run smoke:mac:extension-health
+
+# 真实 Chrome 临时 profile 加载扩展
+npm run smoke:chrome-extension-load
+
+# 开机自启开关冒烟测试
+npm run smoke:mac:autostart
+
+# 模拟登录后 LaunchAgent 启动并验证 /ping
+npm run smoke:mac:login-autostart
+
+# 首次运行配置保存冒烟测试
+npm run smoke:mac:first-run
+
+# 首次运行设置窗口可见性冒烟测试
+npm run smoke:mac:window-visible
+
+# 可选：菜单栏可见性；若已安装 X2MD 正在运行会跳过
+npm run smoke:mac:menu-visible
+
+# 可选：验证 release zip 解压后的 .app
+npm run smoke:mac:release
+
+# Release SHA 和包体积阈值
+npm run check:release-artifacts
 ```
 
-## 开发模式运行
+Electrobun 构建会读取 `electrobun.config.ts`，入口为 `app/main/index.ts`，设置页为 `app/ui/settings/`。构建后会把 `extension/` 复制到 `.app/Contents/Resources/extension`，供菜单和设置页直接打开。设置页内置 `/status` 状态摘要、`/log` 日志尾部查看和可选保存成功通知。
+
+## 测试
 
 ```bash
-# 直接运行（带向导和托盘）
+npm run check
+```
+
+完整 Mac 自动验收门禁：
+
+```bash
+npm run acceptance:mac:auto
+```
+
+该命令会先做 TypeScript 类型检查，然后跑：
+
+- TypeScript 新核心、API 与 golden fixture 测试：`app/tests/*.test.ts`
+- Chrome 扩展 JS 测试：`extension/tests/*.test.js`、`tests/*.js`
+- Python legacy 回归测试：`tests/test_*.py`
+
+## 分发产物
+
+CI 默认产出：
+
+- `X2MD_Mac.zip`：Electrobun `.app`
+- `X2MD_Windows.zip`：迁移期 Python legacy 版
+- `X2MD_Extension.zip`：Chrome 扩展
+- `SHA256SUMS.txt`
+
+## Python legacy（回滚路径）
+
+迁移期仍保留旧版 Python 桌面端：
+
+```bash
+pip3 install -r requirements.txt
+pip3 install pyinstaller
+
+# 开发运行
 python3 tray_app.py
 
-# 仅运行向导（调试）
-python3 setup_wizard.py
-
-# 仅运行服务（无 GUI）
+# 仅运行服务
 python3 server.py
+
+# 打包 legacy 版
+pyinstaller x2md.spec --clean --noconfirm
 ```
-
-## 打包
-
-### macOS
-
-```bash
-# 打包为 .app
-pyinstaller x2md.spec
-
-# 产出目录：dist/X2MD.app
-# 可直接双击运行，或拖入 /Applications
-```
-
-### Windows
-
-```powershell
-# 在 Windows 上运行同一个 spec 文件
-pyinstaller x2md.spec
-
-# 产出目录：dist\X2MD\X2MD.exe
-```
-
-## 分发
-
-打包完成后，`dist/X2MD/` 目录包含：
-
-```
-X2MD/
-├── X2MD (或 X2MD.exe)    # 主程序
-├── extension/            # Chrome 扩展（用户需手动加载）
-├── config.json           # 配置文件（首次运行后自动生成）
-└── ...                   # 运行时依赖
-```
-
-将整个 `X2MD/` 文件夹压缩为 zip 即可分发给用户。
-
-## 用户使用流程
-
-1. 解压 zip 文件
-2. 双击 `X2MD`（Mac）或 `X2MD.exe`（Windows）
-3. 按照向导完成路径设置
-4. 根据向导指引安装 Chrome 扩展
-5. 在 X/Twitter 页面使用书签按钮保存内容

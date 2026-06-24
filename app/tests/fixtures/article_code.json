@@ -1,0 +1,8 @@
+{
+  "type": "article",
+  "article_title": "Article with code",
+  "article_content": "第一段\n\n```js\nconsole.log('x2md')\n```\n\n第二段",
+  "url": "https://x.com/alice/status/102",
+  "handle": "@alice",
+  "images": ["https://pbs.twimg.com/media/article.jpg?format=jpg&name=small"]
+}

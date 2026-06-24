@@ -18,7 +18,12 @@ test("buildGraphQLRequestPlans prioritizes current TweetDetail candidate before 
     assert.equal(plans[0].operationName, "TweetDetail");
     assert.equal(plans[0].operationId, TWEET_DETAIL_OPERATION_IDS[0]);
     assert.equal(plans[1].operationId, TWEET_DETAIL_OPERATION_IDS[1]);
-    assert.equal(plans.at(-1).operationId, TWEET_RESULT_OPERATION_IDS[0]);
+
+    const tweetResultPlans = plans.filter((plan) => plan.operationName === "TweetResultByRestId");
+    assert.deepEqual(
+        tweetResultPlans.map((plan) => plan.operationId),
+        TWEET_RESULT_OPERATION_IDS,
+    );
 });
 
 test("extractGraphQLOperationIdsFromUrls discovers current operation ids from resource URLs", () => {

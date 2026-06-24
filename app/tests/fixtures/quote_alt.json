@@ -1,0 +1,14 @@
+{
+  "type": "tweet",
+  "text": "引用外层",
+  "url": "https://x.com/alice/status/103",
+  "handle": "@alice",
+  "quote_tweet": {
+    "text": "引用正文",
+    "url": "https://x.com/bob/status/1",
+    "images": ["https://pbs.twimg.com/media/quote.jpg?name=small"],
+    "image_alt_texts": {
+      "https://pbs.twimg.com/media/quote.jpg?name=orig": "引用图片描述"
+    }
+  }
+}

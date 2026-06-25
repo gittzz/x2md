@@ -816,26 +816,93 @@ function requestBackgroundCopyText(payload) {
     });
 }
 
+function hasInlineMarkdownLinks(text) {
+    return /\[[^\]]+\]\(https?:\/\/[^)\s]+\)/.test(String(text || ""));
+}
+
+function markdownToClipboardPlainText(markdown) {
+    return String(markdown || "")
+        .replace(/!\[([^\]]*)\]\(https?:\/\/[^)\s]+\)/g, "$1")
+        .replace(/\[([^\]]+)\]\(https?:\/\/[^)\s]+\)/g, "$1")
+        .replace(/^#{1,6}\s+/gm, "")
+        .trim();
+}
+
+function normalizeRemoteCopyContent(remoteContent) {
+    const text = String(remoteContent?.text || "").trim();
+    const markdown = String(remoteContent?.markdown || "").trim();
+    if (markdown) {
+        return {
+            text: text || markdownToClipboardPlainText(markdown),
+            html: markdownToClipboardHtml(markdown),
+            source: remoteContent.source || "remote",
+        };
+    }
+    if (hasInlineMarkdownLinks(text)) {
+        return {
+            text: markdownToClipboardPlainText(text),
+            html: markdownToClipboardHtml(text),
+            source: remoteContent?.source || "remote",
+        };
+    }
+    return {
+        text,
+        html: text ? plainTextToClipboardHtml(text) : "",
+        source: remoteContent?.source || "remote",
+    };
+}
+
+function isCopyScopeShowingTranslatedTweet(scope = document) {
+    const target = getTranslationTarget(scope);
+    if (!target || target.kind !== "tweet") return false;
+    if (targetHasVisibleTranslation(target)) return true;
+    return !!findNativeTwitterTranslationControl(scope, "original");
+}
+
+async function requestBackgroundTweetTranslationForCopy(payload) {
+    const tweetId = extractTweetIdFromUrl(payload?.url || "");
+    if (!tweetId) return null;
+    const result = await requestBackgroundTweetTranslation({
+        url: payload.url,
+        tweetId,
+    });
+    const text = String(result?.translatedText || "").trim();
+    if (!text) return null;
+    return {
+        text,
+        html: plainTextToClipboardHtml(text),
+        source: "tweet_translation_api",
+    };
+}
+
 async function resolveContentForCopy(article, triggerButton) {
+    const scope = article || document;
+    const payload = buildCopyContentPayload(article, triggerButton);
     const visibleTranslation = getDisplayedTranslationContentForCopy(article || document) ||
         (article && article !== document ? getDisplayedTranslationContentForCopy(document) : null);
+
+    if (isCopyScopeShowingTranslatedTweet(scope)) {
+        try {
+            const translatedContent = await requestBackgroundTweetTranslationForCopy(payload);
+            if (translatedContent?.text) return translatedContent;
+        } catch (error) {
+            console.warn("[x2md] 后台提取 X 译文失败，回退当前显示译文：", error);
+        }
+        if (visibleTranslation?.text) return visibleTranslation;
+    }
+
     if (visibleTranslation?.text) {
         return visibleTranslation;
     }
 
-    const payload = buildCopyContentPayload(article, triggerButton);
-
-    if (payload.note_article_url) {
+    if (payload.note_article_url || payload.url?.includes("/status/")) {
         try {
             const remoteContent = await requestBackgroundCopyText(payload);
             if (remoteContent?.text) {
-                return {
-                    text: remoteContent.text,
-                    html: remoteContent.markdown ? markdownToClipboardHtml(remoteContent.markdown) : "",
-                };
+                return normalizeRemoteCopyContent(remoteContent);
             }
         } catch (error) {
-            console.warn("[x2md] 后台提取 X Article 正文失败，回退当前 DOM：", error);
+            console.warn("[x2md] 后台提取 X 正文失败，回退当前 DOM：", error);
         }
     }
 
@@ -3101,6 +3168,11 @@ function handleProfileCaptureResponse(resp, mode) {
         const result = resp.result || {};
         const savedCount = result.saved?.length || 0;
         const skipped = result.skipped || 0;
+        const foundCount = Number(resp.found_count ?? resp.enriched_count ?? 0);
+        if (!foundCount && !savedCount && !skipped) {
+            showToast(mode === "articles" ? "未发现可抓取文章" : "未发现符合范围的原创推文", "error", 4500);
+            return;
+        }
         showToast(
             `${mode === "articles" ? "文章" : "推文"}抓取完成：新增 ${savedCount} 个文件，跳过 ${skipped} 条已抓取内容`,
             "success",
@@ -3133,23 +3205,15 @@ async function startXProfileCapture(options = {}) {
     const rangeLabel = mode === "articles" ? "全部文章" : getXProfileCaptureRangeLabel(settings);
 
     try {
-        showToast(mode === "articles" ? "开始扫描博主文章列表…" : `开始扫描博主推文（${rangeLabel}）…`, "loading", null);
-        const items = mode === "articles"
-            ? await scrollAndCollectProfileArticles(profile)
-            : await scrollAndCollectProfileTweets(profile, { settings });
-        if (!items.length) {
-            xProfileCaptureRunning = false;
-            showToast(mode === "articles" ? "未发现可抓取文章" : "未发现符合范围的原创推文", "error", 4500);
-            return;
-        }
-        showToast(`已发现 ${items.length} 条，正在获取完整内容并写入 Markdown…`, "loading", null);
+        showToast(mode === "articles" ? "正在通过接口抓取博主文章…" : `正在通过接口抓取博主推文（${rangeLabel}）…`, "loading", null);
         const resp = await sendProfileCapturePayload({
             mode,
             profile,
             range: settings.range,
+            days: settings.days,
             range_label: rangeLabel,
             force_full: !!options.forceFull,
-            items,
+            items: [],
         });
         handleProfileCaptureResponse(resp, mode);
     } catch (error) {

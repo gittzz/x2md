@@ -17,6 +17,9 @@ const SERVER_BASE = "http://127.0.0.1:9527";
 const TWITTER_BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 const GRAPHQL_DISCOVERY_CACHE = new Map();
 const PLAIN_TEXT_TRANSLATE_CHUNK_SIZE = 2600;
+const USER_BY_SCREEN_NAME_OPERATION_IDS = ["2qvSHpkWTMS9i0zJAwDNiA"];
+const USER_TWEETS_OPERATION_IDS = ["hr4gzZONlq23okjU8fIe_A"];
+const USER_ARTICLES_TWEETS_OPERATION_IDS = ["tC8Mkunj-1cqFwXmw0DQRg"];
 
 function hasDiscoveredOperationIds(ids) {
     return Array.isArray(ids?.TweetDetail) && ids.TweetDetail.length > 0 ||
@@ -1013,6 +1016,312 @@ async function postProfileCapturePayload(payload) {
     return await resp.json();
 }
 
+function buildUserByScreenNameFeatures() {
+    return {
+        hidden_profile_subscriptions_enabled: true,
+        profile_label_improvements_pcf_label_in_post_enabled: true,
+        responsive_web_profile_redirect_enabled: false,
+        rweb_tipjar_consumption_enabled: true,
+        verified_phone_label_enabled: false,
+        subscriptions_verification_info_is_identity_verified_enabled: true,
+        subscriptions_verification_info_verified_since_enabled: true,
+        highlights_tweets_tab_ui_enabled: true,
+        responsive_web_twitter_article_notes_tab_enabled: true,
+        subscriptions_feature_can_gift_premium: true,
+        creator_subscriptions_tweet_preview_api_enabled: true,
+        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+        responsive_web_graphql_timeline_navigation_enabled: true,
+    };
+}
+
+function buildProfileTimelineFeatures() {
+    return {
+        rweb_video_screen_enabled: false,
+        rweb_cashtags_enabled: true,
+        profile_label_improvements_pcf_label_in_post_enabled: true,
+        responsive_web_profile_redirect_enabled: false,
+        rweb_tipjar_consumption_enabled: true,
+        verified_phone_label_enabled: false,
+        creator_subscriptions_tweet_preview_api_enabled: true,
+        responsive_web_graphql_timeline_navigation_enabled: true,
+        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+        premium_content_api_read_enabled: false,
+        communities_web_enable_tweet_community_results_fetch: true,
+        c9s_tweet_anatomy_moderator_badge_enabled: true,
+        responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+        responsive_web_grok_analyze_post_followups_enabled: false,
+        rweb_cashtags_composer_attachment_enabled: false,
+        responsive_web_jetfuel_frame: false,
+        responsive_web_grok_share_attachment_enabled: true,
+        responsive_web_grok_annotations_enabled: true,
+        articles_preview_enabled: true,
+        responsive_web_edit_tweet_api_enabled: true,
+        rweb_conversational_replies_downvote_enabled: false,
+        graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+        view_counts_everywhere_api_enabled: true,
+        longform_notetweets_consumption_enabled: true,
+        responsive_web_twitter_article_tweet_consumption_enabled: true,
+        content_disclosure_indicator_enabled: true,
+        content_disclosure_ai_generated_indicator_enabled: true,
+        responsive_web_grok_show_grok_translated_post: true,
+        responsive_web_grok_analysis_button_from_backend: true,
+        post_ctas_fetch_enabled: true,
+        freedom_of_speech_not_reach_fetch_enabled: true,
+        standardized_nudges_misinfo: true,
+        tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+        longform_notetweets_rich_text_read_enabled: true,
+        longform_notetweets_inline_media_enabled: false,
+        responsive_web_grok_image_annotation_enabled: true,
+        responsive_web_grok_imagine_annotation_enabled: true,
+        responsive_web_grok_community_note_auto_translation_is_enabled: true,
+        responsive_web_enhance_cards_enabled: false,
+    };
+}
+
+function buildProfileTimelineFieldToggles() {
+    return {
+        withPayments: true,
+        withAuxiliaryUserLabels: true,
+        withArticleRichContentState: true,
+        withArticlePlainText: false,
+        withArticleSummaryText: false,
+        withArticleVoiceOver: false,
+        withGrokAnalyze: false,
+        withDisallowedReplyControls: false,
+    };
+}
+
+async function fetchTwitterGraphQL(operationName, operationIds, variables, features = {}, fieldToggles = {}) {
+    const csrfToken = await getCookieValue("ct0");
+    if (!csrfToken) throw new Error("未找到 X 登录 cookie（ct0）");
+
+    const headers = {
+        "Authorization": `Bearer ${TWITTER_BEARER_TOKEN}`,
+        "X-Csrf-Token": csrfToken,
+        "Content-Type": "application/json",
+        "x-twitter-active-user": "yes",
+        "x-twitter-client-language": "zh-cn",
+    };
+
+    let lastError = "";
+    for (const operationId of operationIds) {
+        const url = buildGraphQLUrl({
+            operationId,
+            operationName,
+            variables,
+            features,
+            fieldToggles,
+        });
+        const resp = await fetch(url, { credentials: "include", headers });
+        if (!resp.ok) {
+            lastError = `${operationName}(${operationId}) 返回 ${resp.status}`;
+            console.warn(`[x2md] ${lastError}`);
+            continue;
+        }
+        const json = await resp.json();
+        if (Array.isArray(json.errors) && json.errors.length) {
+            lastError = json.errors.map((item) => item.message || item.code || "GraphQL error").join("; ");
+            console.warn(`[x2md] ${operationName}(${operationId}) 错误：${lastError}`);
+            continue;
+        }
+        return json;
+    }
+    throw new Error(lastError || `${operationName} 请求失败`);
+}
+
+async function fetchXUserByScreenName(handle) {
+    const screenName = String(handle || "").replace(/^@/, "").trim();
+    if (!screenName) throw new Error("缺少博主 handle");
+    const json = await fetchTwitterGraphQL(
+        "UserByScreenName",
+        USER_BY_SCREEN_NAME_OPERATION_IDS,
+        { screen_name: screenName, withGrokTranslatedBio: true },
+        buildUserByScreenNameFeatures(),
+        { withPayments: true, withAuxiliaryUserLabels: true },
+    );
+    const result = json?.data?.user?.result;
+    if (!result?.rest_id) throw new Error(`未找到 X 博主：@${screenName}`);
+    const legacy = result.legacy || result.core || {};
+    return {
+        restId: result.rest_id,
+        handle: legacy.screen_name || screenName,
+        displayName: legacy.name || screenName,
+    };
+}
+
+function getProfileCaptureRangeStart(payload = {}) {
+    const range = String(payload.range || "today");
+    const days = Math.max(1, parseInt(payload.days || payload.profile_capture_custom_days, 10) || 7);
+    const now = new Date();
+    if (range === "all") return null;
+    if (range === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
+    if (range === "days") return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function extractProfileTimelineInstructions(json) {
+    return json?.data?.user?.result?.timeline?.timeline?.instructions || [];
+}
+
+function extractProfileTimelineEntries(json) {
+    const entries = [];
+    for (const instruction of extractProfileTimelineInstructions(json)) {
+        if (Array.isArray(instruction.entries)) entries.push(...instruction.entries);
+        if (instruction.entry) entries.push(instruction.entry);
+    }
+    return entries;
+}
+
+function extractProfileTimelineTweetResults(json) {
+    const results = [];
+    for (const entry of extractProfileTimelineEntries(json)) {
+        const direct = entry?.content?.itemContent?.tweet_results?.result;
+        if (direct) results.push(direct);
+        for (const item of entry?.content?.items || []) {
+            const result = item?.item?.itemContent?.tweet_results?.result;
+            if (result) results.push(result);
+        }
+    }
+    return results;
+}
+
+function extractBottomCursorFromProfileTimeline(json) {
+    const cursorEntries = extractProfileTimelineEntries(json)
+        .map((entry) => entry?.content)
+        .filter((content) => content?.entryType === "TimelineTimelineCursor" && content.cursorType === "Bottom" && content.value);
+    return cursorEntries[cursorEntries.length - 1]?.value || "";
+}
+
+function isRetweetResult(result) {
+    const tweet = unwrapTweetResult(result);
+    const legacy = tweet?.legacy || {};
+    return !!legacy.retweeted_status_result || /^RT\s+@/i.test(String(legacy.full_text || legacy.text || ""));
+}
+
+function getTweetResultAuthor(result) {
+    const tweet = unwrapTweetResult(result);
+    const userResult = tweet?.core?.user_results?.result || {};
+    const legacy = userResult.legacy || userResult.core || {};
+    return {
+        restId: userResult.rest_id || legacy.id_str || "",
+        handle: legacy.screen_name || "",
+        displayName: legacy.name || "",
+        legacy,
+    };
+}
+
+function getTweetResultCreatedAt(result) {
+    const tweet = unwrapTweetResult(result);
+    return tweet?.legacy?.created_at || "";
+}
+
+function tweetCreatedBefore(result, rangeStart) {
+    if (!rangeStart) return false;
+    const createdAt = getTweetResultCreatedAt(result);
+    const time = createdAt ? Date.parse(createdAt) : 0;
+    return !!time && time < rangeStart.getTime();
+}
+
+function profileTweetRawItemFromResult(result, profile, options = {}) {
+    const tweet = unwrapTweetResult(result);
+    const legacy = tweet?.legacy || {};
+    const tweetId = legacy.id_str || tweet?.rest_id || result?.rest_id || "";
+    if (!tweetId) return null;
+    const author = getTweetResultAuthor(result);
+    const handle = author.handle ? `@${author.handle}` : `@${profile.handle}`;
+    const screenName = String(handle || "").replace(/^@/, "");
+    return {
+        type: options.mode === "articles" ? "article" : "tweet",
+        tweet_id: tweetId,
+        url: `https://x.com/${screenName}/status/${tweetId}`,
+        tweet_url: `https://x.com/${screenName}/status/${tweetId}`,
+        author: author.displayName || profile.displayName || profile.handle,
+        handle,
+        author_url: profile.profileUrl,
+        published: legacy.created_at || "",
+        text: legacy.full_text || legacy.text || "",
+        article_url: options.mode === "articles" ? extractArticleUrlFromText(legacy.full_text || legacy.text || "") : "",
+        graphql_operation_ids: {},
+    };
+}
+
+async function fetchProfileItemsViaGraphQL(payload = {}) {
+    const requestedProfile = payload.profile || {};
+    const requestedHandle = requestedProfile.handle || payload.handle || "";
+    const user = await fetchXUserByScreenName(requestedHandle);
+    const profile = {
+        handle: user.handle || String(requestedHandle).replace(/^@/, ""),
+        displayName: requestedProfile.displayName || requestedProfile.display_name || user.displayName || requestedHandle,
+        profileUrl: requestedProfile.profileUrl || requestedProfile.profile_url || `https://x.com/${user.handle || requestedHandle}`,
+    };
+    const mode = payload.mode === "articles" ? "articles" : "tweets";
+    const operationName = mode === "articles" ? "UserArticlesTweets" : "UserTweets";
+    const operationIds = mode === "articles" ? USER_ARTICLES_TWEETS_OPERATION_IDS : USER_TWEETS_OPERATION_IDS;
+    const rangeStart = mode === "tweets" ? getProfileCaptureRangeStart(payload) : null;
+    const maxPages = mode === "articles" ? 120 : (String(payload.range || "today") === "all" ? 260 : 90);
+    const collected = new Map();
+    let cursor = "";
+    let olderRounds = 0;
+    let noNewPages = 0;
+
+    for (let page = 0; page < maxPages; page++) {
+        const beforeSize = collected.size;
+        const variables = {
+            userId: user.restId,
+            count: 20,
+            includePromotedContent: true,
+            withQuickPromoteEligibilityTweetFields: true,
+            withVoice: true,
+        };
+        if (cursor) variables.cursor = cursor;
+
+        const json = await fetchTwitterGraphQL(
+            operationName,
+            operationIds,
+            variables,
+            buildProfileTimelineFeatures(),
+            buildProfileTimelineFieldToggles(),
+        );
+
+        const results = extractProfileTimelineTweetResults(json);
+        let pageHadOlderTweet = false;
+        let pageHadCollectableTweet = false;
+
+        for (const result of results) {
+            if (isRetweetResult(result)) continue;
+            const author = getTweetResultAuthor(result);
+            if (author.restId && author.restId !== user.restId) continue;
+            if (tweetCreatedBefore(result, rangeStart)) {
+                pageHadOlderTweet = true;
+                continue;
+            }
+            const item = profileTweetRawItemFromResult(result, profile, { mode });
+            if (!item) continue;
+            const key = item.tweet_id || item.url;
+            if (!collected.has(key)) collected.set(key, item);
+            pageHadCollectableTweet = true;
+        }
+
+        if (collected.size === beforeSize) noNewPages++;
+        else noNewPages = 0;
+        if (noNewPages >= 3) break;
+
+        if (rangeStart && pageHadOlderTweet && !pageHadCollectableTweet) olderRounds++;
+        else olderRounds = 0;
+        if (rangeStart && olderRounds >= 2) break;
+
+        const nextCursor = extractBottomCursorFromProfileTimeline(json);
+        if (!nextCursor || nextCursor === cursor) break;
+        cursor = nextCursor;
+    }
+
+    return {
+        profile,
+        items: Array.from(collected.values()),
+        source: operationName,
+    };
+}
+
 // ─────────────────────────────────────────────
 // 消息处理
 // ─────────────────────────────────────────────
@@ -1023,7 +1332,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             try {
                 const payload = message.data || {};
                 const mode = payload.mode === "articles" ? "articles" : "tweets";
-                const rawItems = Array.isArray(payload.items) ? payload.items : [];
+                let rawItems = Array.isArray(payload.items) ? payload.items : [];
+                let profile = payload.profile || {};
+                let profileSource = "dom";
+                if (!rawItems.length && (profile.handle || payload.handle)) {
+                    const fetched = await fetchProfileItemsViaGraphQL({
+                        ...payload,
+                        mode,
+                    });
+                    rawItems = fetched.items || [];
+                    profile = fetched.profile || profile;
+                    profileSource = fetched.source || "graphql";
+                    console.log(`[x2md] 博主批量接口抓取：mode=${mode} source=${profileSource} items=${rawItems.length}`);
+                }
                 const items = [];
 
                 if (mode === "articles") {
@@ -1039,10 +1360,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 const result = await postProfileCapturePayload({
                     ...payload,
+                    profile,
                     mode,
                     items,
                 });
-                sendResponse({ success: result.success !== false, result, enriched_count: items.length });
+                sendResponse({
+                    success: result.success !== false,
+                    result,
+                    found_count: rawItems.length,
+                    enriched_count: items.length,
+                    source: profileSource,
+                });
             } catch (err) {
                 console.error("[x2md] 博主批量抓取失败：", err);
                 sendResponse({ success: false, error: err.message || String(err) });

@@ -1,5 +1,20 @@
 export function sanitizeUnicodeText(value: unknown): string {
-  return String(value ?? "").replace(/[\uD800-\uDFFF]/g, "");
+  const text = String(value ?? "");
+  let cleaned = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        cleaned += text[i] + text[i + 1];
+        i += 1;
+      }
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) continue;
+    cleaned += text[i];
+  }
+  return cleaned;
 }
 
 export function sanitizeUnicodePayload(value: unknown): unknown {

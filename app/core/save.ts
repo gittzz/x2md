@@ -15,7 +15,7 @@ export function savePayload(data: Record<string, any>, cfg: X2MDConfig | Record<
   if (!savePaths.length) return { success: false, errors: ["未配置保存路径"] };
 
   const [filename, content] = buildMarkdown(data, cfg, appDir);
-  const safeFilename = sanitizeUnicodeText(sanitizeFilename(filename, Number(cfg.max_filename_length || 120))) || "untitled";
+  const safeFilename = sanitizeUnicodeText(sanitizeFilename(filename, Number(cfg.max_filename_length || 100))) || "untitled";
   const safeContent = sanitizeUnicodeText(content);
   const saved: string[] = [];
   const errors: string[] = [];

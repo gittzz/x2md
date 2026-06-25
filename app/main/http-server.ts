@@ -5,7 +5,7 @@ import { handleProfileCaptureSave, getProfileStateBucket, loadProfileCaptureStat
 import { savePayload } from "../core/save.ts";
 import { sanitizeUnicodePayload } from "../core/unicode.ts";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart.ts";
-import { openConfiguredTarget } from "./desktop.ts";
+import { chooseFolder, openConfiguredTarget, showSettingsWindow } from "./desktop.ts";
 import { log, readLogTail } from "./logger.ts";
 import { notifySaveSuccess } from "./notify.ts";
 
@@ -59,7 +59,7 @@ export function resolveListenPort(override: unknown, configured: number): number
   return Number.isInteger(port) && port >= 0 && port <= 65535 ? port : configured;
 }
 
-export async function handleApiRequest(request: Request, opts: { appDir?: string; autostartDryRun?: boolean; openDryRun?: boolean; port?: number } = {}): Promise<Response> {
+export async function handleApiRequest(request: Request, opts: { appDir?: string; autostartDryRun?: boolean; openDryRun?: boolean; dialogDryRun?: boolean; port?: number } = {}): Promise<Response> {
   const appDir = opts.appDir || getAppDir();
   const url = new URL(request.url);
   const path = url.pathname;
@@ -135,6 +135,14 @@ export async function handleApiRequest(request: Request, opts: { appDir?: string
       log(`开机自动运行：${enabled ? "enabled" : "disabled"}`, appDir);
       return json({ success: true, enabled });
     }
+    if (path === "/choose-folder") {
+      const selectedPath = await chooseFolder({ currentPath: data.currentPath, appDir, dryRun: opts.dialogDryRun ?? opts.openDryRun });
+      return json({ success: true, path: selectedPath, selected: Boolean(selectedPath) });
+    }
+    if (path === "/settings") {
+      await showSettingsWindow(appDir, opts.port);
+      return json({ success: true });
+    }
     if (path === "/open") return json({ success: true, target: openConfiguredTarget(data.target, appDir, opts.openDryRun) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -164,6 +172,7 @@ export async function startHttpServer(opts: { appDir?: string; port?: number; ho
   const appDir = opts.appDir || getAppDir();
   const cfg = loadConfig(appDir);
   const openDryRun = process.env.X2MD_OPEN_DRY_RUN === "1";
+  const dialogDryRun = process.env.X2MD_DIALOG_DRY_RUN === "1" || openDryRun;
   log(`配置路径：${configPath(appDir)}`, appDir);
   const port = resolveListenPort(opts.port, cfg.port ?? 9527);
   const hostname = opts.hostname || "127.0.0.1";
@@ -174,7 +183,7 @@ export async function startHttpServer(opts: { appDir?: string; port?: number; ho
       const server = (globalThis as any).Bun.serve({
         hostname,
         port,
-        fetch: (request: Request) => handleApiRequest(request, { appDir, port: actualPort, openDryRun }),
+        fetch: (request: Request) => handleApiRequest(request, { appDir, port: actualPort, openDryRun, dialogDryRun }),
       });
       actualPort = server.port;
       log(`x2md 服务已启动：http://${hostname}:${server.port}`, appDir);
@@ -186,7 +195,7 @@ export async function startHttpServer(opts: { appDir?: string; port?: number; ho
   }
 
   let actualPort = port;
-  const server: Server = createServer(async (req, res) => writeNodeResponse(res, await handleApiRequest(await requestFromIncoming(req), { appDir, port: actualPort, openDryRun })));
+  const server: Server = createServer(async (req, res) => writeNodeResponse(res, await handleApiRequest(await requestFromIncoming(req), { appDir, port: actualPort, openDryRun, dialogDryRun })));
   await new Promise<void>((resolve, reject) => {
     server.once("error", (error: any) => {
       reject(new Error(listenErrorMessage(error, port)));

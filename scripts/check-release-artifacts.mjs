@@ -22,6 +22,11 @@ try {
   if (appMb > 90) throw new Error(`X2MD.app too large: ${appMb.toFixed(1)}MB > 90MB`);
   const recorded = readFileSync(sums, "utf8");
   if (!recorded.includes("X2MD_Mac.zip") || !recorded.includes("X2MD_Extension.zip")) throw new Error("SHA256SUMS missing release files");
+  for (const file of ["index.html", "styles.css", "settings.js"]) {
+    if (!existsSync(join(dir, "X2MD.app", "Contents", "Resources", "app", "views", "settings", file))) {
+      throw new Error(`X2MD_Mac.zip missing settings view ${file}`);
+    }
+  }
 
   const extDir = join(dir, "extension");
   execFileSync("unzip", ["-q", extZip, "-d", extDir]);

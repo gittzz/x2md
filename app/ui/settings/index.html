@@ -3,105 +3,308 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <title>X2MD 设置</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main>
-    <h1>X2MD 设置</h1>
-    <p id="status">正在连接本地服务…</p>
-    <p id="serviceInfo"></p>
+  <main class="shell">
+    <aside class="sidebar surface">
+      <section class="brand-card" aria-label="X2MD 设置">
+        <div class="brand-mark" aria-hidden="true">X2MD</div>
+        <div class="brand-copy">
+          <h1>设置</h1>
+          <p>只改常用项就够了，高级选项已收起。</p>
+        </div>
+      </section>
 
-    <label class="row">
-      <input id="autostart" type="checkbox" />
-      开机自动运行
-    </label>
+      <section class="status-card">
+        <p id="status" class="status" aria-live="polite">正在连接本机服务</p>
+        <p id="serviceInfo" class="service-info" aria-live="polite"></p>
+      </section>
 
-    <label>Markdown 保存目录
-      <input id="savePath" placeholder="~/Desktop/X2MD/MD" />
-    </label>
+      <nav class="panel-nav" role="tablist" aria-label="设置分类">
+        <button id="tab-save" class="nav-item is-active" data-panel-button="save" role="tab" aria-selected="true" aria-controls="panel-save" type="button">
+          <strong>保存位置</strong>
+          <span>内容放到哪里</span>
+        </button>
+        <button id="tab-media" class="nav-item" data-panel-button="media" role="tab" aria-selected="false" aria-controls="panel-media" type="button">
+          <strong>视频</strong>
+          <span>下载和提醒</span>
+        </button>
+        <button id="tab-capture" class="nav-item" data-panel-button="capture" role="tab" aria-selected="false" aria-controls="panel-capture" type="button">
+          <strong>网页按钮</strong>
+          <span>保存和抓取入口</span>
+        </button>
+        <button id="tab-system" class="nav-item" data-panel-button="system" role="tab" aria-selected="false" aria-controls="panel-system" type="button">
+          <strong>启动与工具</strong>
+          <span>开机启动、日志</span>
+        </button>
+      </nav>
 
-    <label>自定义保存路径（JSON 数组）
-      <textarea id="customSavePaths" rows="4" placeholder='[{"name":"生图类","path":"/你的/Obsidian/子目录"}]'></textarea>
-    </label>
+      <div class="sidebar-actions">
+        <button id="save" class="primary" type="button">保存更改</button>
+        <button id="test" class="secondary" type="button">检查服务</button>
+      </div>
+    </aside>
 
-    <label>视频保存目录
-      <input id="videoPath" placeholder="~/Desktop/X2MD/Videos" />
-    </label>
+    <section class="detail">
+      <header class="detail-head">
+        <p id="panelLabel" class="section-label">保存位置</p>
+        <h2 id="panelTitle">内容保存到哪里</h2>
+        <p id="panelDescription" class="lede">选择一个主目录。其他保存位置只在你需要分类时再打开。</p>
+      </header>
 
-    <label class="row">
-      <input id="enableVideoDownload" type="checkbox" />
-      启用视频下载
-    </label>
+      <div class="panel-stack">
+        <section id="panel-save" class="panel" data-panel-section="save" role="tabpanel" aria-labelledby="tab-save">
+          <div class="panel-grid">
+            <article class="card span-8 priority-card">
+              <div class="card-head">
+                <div>
+                  <h3>主要保存位置</h3>
+                  <p>保存的 Markdown 文件会默认放在这里。</p>
+                </div>
+                <button id="openSave" class="soft" type="button">在 Finder 打开</button>
+              </div>
 
-    <label class="row">
-      <input id="enableSaveNotification" type="checkbox" />
-      保存成功后显示系统通知
-    </label>
+              <div class="field path-field">
+                <span>保存到</span>
+                <div class="path-picker">
+                  <input id="savePath" readonly placeholder="还未选择保存文件夹" />
+                  <button id="chooseSavePath" class="soft" type="button">选择文件夹</button>
+                </div>
+                <small class="field-hint">点击“选择文件夹”，不用手动输入完整路径。</small>
+              </div>
+            </article>
 
-    <label>长视频二次确认阈值（分钟）
-      <input id="videoThreshold" type="number" min="1" max="1440" />
-    </label>
+            <article class="card span-4 compact-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>文件名</h3>
+                  <p>通常不用改，X2MD 会自动用标题命名。</p>
+                </div>
+              </div>
 
-    <label>服务端口
-      <input id="port" type="number" min="1" max="65535" />
-    </label>
+              <div class="field">
+                <span>文件名格式</span>
+                <input id="filenameFormat" class="visually-hidden" readonly aria-hidden="true" tabindex="-1" />
+                <div id="filenameFormatChips" class="format-picker" role="group" aria-label="文件名格式">
+                  <button class="format-chip is-active" type="button" data-filename-format="{summary}">标题</button>
+                  <button class="format-chip" type="button" data-filename-format="{summary}_{date}">标题 + 日期</button>
+                  <button class="format-chip" type="button" data-filename-format="{author}_{summary}">作者 + 标题</button>
+                  <button class="format-chip" type="button" data-filename-format="{summary}_{date}_{author}">标题 + 日期 + 作者</button>
+                </div>
+                <small id="filenameFormatPreview" class="field-hint filename-preview">示例：一篇中文长标题</small>
+              </div>
 
-    <label>文件名格式
-      <input id="filenameFormat" placeholder="{summary}_{date}_{author}" />
-    </label>
+              <label class="field field-tight">
+                <span>最长标题字数</span>
+                <input id="maxFilenameLength" type="number" min="20" max="180" />
+                <small class="field-hint">按中文字符数计算，默认 100 个字，适合较长中文标题。</small>
+              </label>
+            </article>
 
-    <label>最长文件名
-      <input id="maxFilenameLength" type="number" min="20" max="180" />
-    </label>
+            <article class="card span-12 quiet-card">
+              <details class="advanced custom-paths-panel">
+                <summary>
+                  <span>
+                    <strong>额外保存位置</strong>
+                    <small id="customSaveSummary">没有额外位置。大多数用户不用设置。</small>
+                  </span>
+                </summary>
 
-    <label>博主抓取范围
-      <select id="profileRange">
-        <option value="today">当日</option>
-        <option value="month">当月</option>
-        <option value="days">最近 N 天</option>
-        <option value="all">全部</option>
-      </select>
-    </label>
+                <div class="custom-paths-editor">
+                  <div class="custom-paths-toolbar">
+                    <p>需要把不同内容分开放时，在这里新增位置。例如“生图”“文章”“客户资料”。</p>
+                    <button id="addCustomSavePath" class="soft" type="button">新增位置</button>
+                  </div>
+                  <div id="customSavePathList" class="custom-path-list" aria-label="额外保存位置列表"></div>
+                  <textarea id="customSavePaths" class="visually-hidden" aria-hidden="true" tabindex="-1"></textarea>
+                  <small class="field-hint custom-path-help">每个位置需要一个好记的名称和一个本机目录。留空的项目不会保存。</small>
+                </div>
+              </details>
+            </article>
+          </div>
+        </section>
 
-    <label>自定义天数
-      <input id="profileCustomDays" type="number" min="1" max="3650" />
-    </label>
+        <section id="panel-media" class="panel" data-panel-section="media" role="tabpanel" aria-labelledby="tab-media" hidden>
+          <div class="panel-grid">
+            <article class="card span-7 priority-card">
+              <div class="card-head">
+                <div>
+                  <h3>视频文件</h3>
+                  <p>保存内容时，是否把视频也下载到本机。</p>
+                </div>
+                <button id="openVideo" class="soft" type="button">打开视频目录</button>
+              </div>
 
-    <label>博主批量保存根路径（留空使用主保存目录）
-      <input id="profileSavePath" />
-    </label>
+              <label class="switch">
+                <input id="enableVideoDownload" type="checkbox" />
+                <span>
+                  <strong>自动下载视频</strong>
+                  <small>关闭后只保存视频链接，不占本机空间。</small>
+                </span>
+              </label>
 
-    <label class="row">
-      <input id="showSiteSaveIcon" type="checkbox" />
-      显示站点保存按钮
-    </label>
+              <div class="field path-field">
+                <span>视频保存到</span>
+                <div class="path-picker">
+                  <input id="videoPath" readonly placeholder="还未选择视频保存文件夹" />
+                  <button id="chooseVideoPath" class="soft" type="button">选择文件夹</button>
+                </div>
+              </div>
+            </article>
 
-    <label class="row">
-      <input id="showProfileCapture" type="checkbox" />
-      显示 X 博主批量抓取按钮
-    </label>
+            <article class="card span-5 compact-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>保存反馈</h3>
+                  <p>让保存结果更容易确认。</p>
+                </div>
+              </div>
 
-    <section class="actions">
-      <button id="save">保存设置</button>
-      <button id="test">测试服务</button>
-      <button id="openSave" type="button">打开保存目录</button>
-      <button id="openVideo" type="button">打开视频目录</button>
-      <button id="openLog" type="button">打开日志</button>
-      <button id="showLog" type="button">查看日志</button>
-      <button id="openExtension" type="button">扩展安装说明</button>
-    </section>
+              <label class="switch">
+                <input id="enableSaveNotification" type="checkbox" />
+                <span>
+                  <strong>完成后通知我</strong>
+                  <small>保存完成时显示系统通知。</small>
+                </span>
+              </label>
 
-    <pre id="logView" hidden></pre>
+              <details class="advanced compact-advanced">
+                <summary>长视频提醒</summary>
+                <label class="field field-tight">
+                  <span>超过几分钟时提醒</span>
+                  <input id="videoThreshold" type="number" min="1" max="1440" />
+                </label>
+              </details>
+            </article>
+          </div>
+        </section>
 
-    <section id="extensionHelp" hidden>
-      <h2>Chrome 扩展安装</h2>
-      <ol>
-        <li>打开 <code>chrome://extensions/</code></li>
-        <li>开启“开发者模式”</li>
-        <li>点击“加载已解压的扩展程序”</li>
-        <li>选择本项目或发布包里的 <code>extension</code> / <code>X2MD_Extension</code> 目录</li>
-      </ol>
+        <section id="panel-capture" class="panel" data-panel-section="capture" role="tabpanel" aria-labelledby="tab-capture" hidden>
+          <div class="panel-grid">
+            <article class="card span-6 priority-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>网页上的快捷按钮</h3>
+                  <p>在支持的网站上显示保存和抓取入口。</p>
+                </div>
+              </div>
+
+              <label class="switch">
+                <input id="showSiteSaveIcon" type="checkbox" />
+                <span>
+                  <strong>显示保存按钮</strong>
+                  <small>打开网页后，可以直接保存当前内容。</small>
+                </span>
+              </label>
+
+              <label class="switch">
+                <input id="showProfileCapture" type="checkbox" />
+                <span>
+                  <strong>显示博主抓取按钮</strong>
+                  <small>在 X 博主页面抓取一段时间内的内容。</small>
+                </span>
+              </label>
+            </article>
+
+            <article class="card span-6 compact-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>抓取范围</h3>
+                  <p>默认抓取当天内容，范围越大耗时越久。</p>
+                </div>
+              </div>
+
+              <label class="field">
+                <span>抓取哪些内容</span>
+                <select id="profileRange">
+                  <option value="today">今天</option>
+                  <option value="month">本月</option>
+                  <option value="days">最近几天</option>
+                  <option value="all">全部</option>
+                </select>
+              </label>
+
+              <label class="field field-tight">
+                <span>最近天数</span>
+                <input id="profileCustomDays" type="number" min="1" max="3650" />
+              </label>
+
+              <details class="advanced compact-advanced">
+                <summary>博主内容单独保存</summary>
+                <div class="field field-wide path-field">
+                  <span>单独保存到</span>
+                  <div class="path-picker">
+                    <input id="profileSavePath" readonly placeholder="不单独选择时，使用主要保存位置" />
+                    <button id="chooseProfilePath" class="soft" type="button">选择文件夹</button>
+                    <button id="clearProfilePath" class="soft" type="button">使用主目录</button>
+                  </div>
+                  <small class="field-hint">如果你希望博主抓取内容放到另一个目录，在这里选择即可。</small>
+                </div>
+              </details>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-system" class="panel" data-panel-section="system" role="tabpanel" aria-labelledby="tab-system" hidden>
+          <div class="panel-grid">
+            <article class="card span-6 priority-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>启动方式</h3>
+                  <p>如果经常使用，建议打开登录后自动启动。</p>
+                </div>
+              </div>
+
+              <label class="switch">
+                <input id="autostart" type="checkbox" />
+                <span>
+                  <strong>登录后自动启动</strong>
+                  <small>开机登录后自动运行 X2MD。</small>
+                </span>
+              </label>
+
+              <details class="advanced compact-advanced">
+                <summary>高级网络设置</summary>
+                <label class="field field-tight">
+                  <span>服务端口</span>
+                  <input id="port" type="number" min="1" max="65535" />
+                  <small class="field-hint">只有端口冲突时才需要修改。</small>
+                </label>
+              </details>
+            </article>
+
+            <article class="card span-6 compact-card">
+              <div class="card-head compact-head">
+                <div>
+                  <h3>帮助与诊断</h3>
+                  <p>遇到问题时再打开这些工具。</p>
+                </div>
+              </div>
+
+              <div class="inline-actions">
+                <button id="openLog" class="soft" type="button">打开日志</button>
+                <button id="showLog" class="soft" type="button">查看日志</button>
+                <button id="openExtension" class="soft" type="button">浏览器扩展</button>
+              </div>
+
+              <pre id="logView" hidden></pre>
+
+              <section id="extensionHelp" class="help-card" hidden>
+                <h4>安装浏览器扩展</h4>
+                <ol>
+                  <li>打开 <code>chrome://extensions/</code></li>
+                  <li>开启开发者模式</li>
+                  <li>点击加载已解压的扩展程序</li>
+                  <li>选择本项目或发布包里的 <code>extension</code> 目录</li>
+                </ol>
+              </section>
+            </article>
+          </div>
+        </section>
+      </div>
     </section>
   </main>
   <script type="module" src="settings.js"></script>

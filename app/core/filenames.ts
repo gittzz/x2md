@@ -1,9 +1,20 @@
 export function sanitizeFilename(name: unknown, maxLen = 60): string {
-  return String(name ?? "")
+  const limit = Math.max(0, Math.floor(Number.isFinite(Number(maxLen)) ? Number(maxLen) : 60));
+  const cleaned = String(name ?? "")
     .replace(/[\\/:*?"<>|]/g, "_")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLen);
+    .trim();
+
+  const Segmenter = (Intl as unknown as {
+    Segmenter?: new (locale?: string, options?: { granularity?: "grapheme" }) => {
+      segment(input: string): Iterable<{ segment: string }>;
+    };
+  }).Segmenter;
+  if (Segmenter) {
+    const segmenter = new Segmenter("zh-Hans", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(cleaned), (item) => item.segment).slice(0, limit).join("");
+  }
+  return Array.from(cleaned).slice(0, limit).join("");
 }
 
 export function normalizeImageUrl(url: unknown): string {

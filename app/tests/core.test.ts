@@ -6,9 +6,10 @@ import { join } from "node:path";
 
 import { resolveSavePathsForRequest, normalizeConfig, cliArg, saveConfig, logPath } from "../core/config.ts";
 import { buildLaunchAgentPlist, LABEL, LEGACY_LABEL, plistPath, programArgumentsForExecutable, setAutostartEnabled } from "../main/autostart.ts";
-import { bundledExtensionDirForExecutable, settingsUrl } from "../main/desktop.ts";
+import { bundledExtensionDirForExecutable, inlineSettingsHtml, settingsUrl, settingsViewsRootForExecutable } from "../main/desktop.ts";
 import { handleTrayAction, trayMenuItems } from "../main/tray.ts";
 import { buildMarkdown } from "../core/markdown.ts";
+import { sanitizeFilename } from "../core/filenames.ts";
 import { handleProfileCaptureSave } from "../core/profile-capture.ts";
 import { sanitizeUnicodeText } from "../core/unicode.ts";
 import { saveNotificationBody } from "../main/notify.ts";
@@ -71,8 +72,8 @@ test("视频下载开始和完成写入日志", async () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     const log = readFileSync(logPath(appDir), "utf8");
-    assert.match(log, /视频下载开始：video_.*_video_1\.mp4/);
-    assert.match(log, /视频下载完成：video_.*_video_1\.mp4/);
+    assert.match(log, /视频下载开始：video(?:_.*)?_video_1\.mp4/);
+    assert.match(log, /视频下载完成：video(?:_.*)?_video_1\.mp4/);
   } finally {
     globalThis.fetch = oldFetch;
   }
@@ -92,6 +93,7 @@ test("非法 Unicode surrogate 会被清理", () => {
   const cleaned = sanitizeUnicodeText(content);
   assert.doesNotMatch(cleaned, /\ud83d/);
   assert.doesNotThrow(() => Buffer.from(cleaned, "utf8"));
+  assert.equal(sanitizeUnicodeText("📄 素材库"), "📄 素材库");
 });
 
 test("博主推文按日聚合并跳过重复项", () => {
@@ -178,9 +180,15 @@ test("无效数值配置回到默认值", () => {
     video_duration_threshold: -1,
     profile_capture_custom_days: 0,
   });
-  assert.equal(cfg.max_filename_length, 60);
+  assert.equal(cfg.max_filename_length, 100);
   assert.equal(cfg.video_duration_threshold, 5);
   assert.equal(cfg.profile_capture_custom_days, 7);
+});
+
+test("文件名长度按中文可见字符截断", () => {
+  assert.equal(sanitizeFilename("中文长标题", 4), "中文长标");
+  assert.equal(sanitizeFilename("🙂🙂🙂", 2), "🙂🙂");
+  assert.equal(normalizeConfig({ max_filename_length: 500 }).max_filename_length, 180);
 });
 
 test("旧配置布尔字符串按布尔值迁移", () => {
@@ -232,6 +240,27 @@ test("设置页 URL 带当前服务端口", () => {
   saveConfig({ port: 19527 }, appDir);
   assert.equal(settingsUrl(appDir), "views://settings/index.html#port=19527");
   assert.equal(settingsUrl(appDir, 19001), "views://settings/index.html#port=19001");
+});
+
+test("设置页 HTML 内联样式和脚本，避免 views scheme 空白", () => {
+  const html = inlineSettingsHtml(
+    '<html><head><link rel="stylesheet" href="styles.css" /></head><body><h1>X2MD 设置</h1><script type="module" src="settings.js"></script></body></html>',
+    "body { color: #111; }",
+    "document.body.dataset.ready = '1';",
+    19001,
+  );
+  assert.match(html, /globalThis\.X2MD_PORT = "19001"/);
+  assert.match(html, /<style>body \{ color: #111; \}<\/style>/);
+  assert.match(html, /document\.body\.dataset\.ready/);
+  assert.doesNotMatch(html, /href="styles\.css"/);
+  assert.doesNotMatch(html, /src="settings\.js"/);
+});
+
+test("打包 App 内设置页 views root 解析到 Contents/Resources/app/views", () => {
+  assert.equal(
+    settingsViewsRootForExecutable("/Applications/X2MD.app/Contents/MacOS/X2MD"),
+    "/Applications/X2MD.app/Contents/Resources/app/views",
+  );
 });
 
 test("托盘菜单覆盖桌面入口", () => {

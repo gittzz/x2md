@@ -75,17 +75,18 @@ test("普通网页 Origin 只能访问 /ping，不能读写敏感 API", async ()
 
 test("GET/POST /config 读写配置", async () => {
   const appDir = tempApp();
+  const emojiDir = join(appDir, "📄 素材库");
   const post = await handleApiRequest(new Request("http://127.0.0.1:9527/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ save_paths: [join(appDir, "md")], setup_completed: true }),
+    body: JSON.stringify({ save_paths: [emojiDir], setup_completed: true }),
   }), { appDir });
   assert.equal(post.status, 200);
 
   const get = await handleApiRequest(new Request("http://127.0.0.1:9527/config"), { appDir });
   const cfg = await json(get);
   assert.equal(cfg.setup_completed, true);
-  assert.deepEqual(cfg.save_paths, [join(appDir, "md")]);
+  assert.deepEqual(cfg.save_paths, [emojiDir]);
 });
 
 test("扩展保存 save_paths 时自动完成首次设置", async () => {
@@ -259,6 +260,26 @@ test("POST /open 只允许打开白名单目标", async () => {
     body: JSON.stringify({ target: "/tmp/evil" }),
   }), { appDir, openDryRun: true });
   assert.equal(bad.status, 400);
+});
+
+test("POST /choose-folder 使用系统文件夹选择器并支持 dry-run", async () => {
+  const appDir = tempApp();
+  const mdDir = join(appDir, "md");
+  await handleApiRequest(new Request("http://127.0.0.1:9527/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ save_paths: [mdDir] }),
+  }), { appDir });
+
+  const res = await handleApiRequest(new Request("http://127.0.0.1:9527/choose-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPath: mdDir }),
+  }), { appDir, dialogDryRun: true });
+  const body = await json(res);
+  assert.equal(res.status, 200);
+  assert.equal(body.path, mdDir);
+  assert.equal(body.selected, true);
 });
 
 test("GET /log 返回日志尾部", async () => {

@@ -85,10 +85,10 @@ export function buildMarkdown(input: Record<string, any>, cfg: X2MDConfig | Reco
   const dateStr = formatDate();
   const datetimeStr = formatDateTime();
   const summarySrc = articleTitle || text;
-  const maxLen = Number(cfg.max_filename_length || 60);
-  const summaryShort = sanitizeFilename(summarySrc ? String(summarySrc).slice(0, 30) : "untitled", maxLen);
+  const maxLen = Number(cfg.max_filename_length || 100);
+  const summaryShort = sanitizeFilename(summarySrc || "untitled", maxLen);
   const authorClean = sanitizeFilename(handle ? String(handle).replace(/^@/, "") : author, 20);
-  const fmt = String(cfg.filename_format || "{summary}_{date}_{author}");
+  const fmt = String(cfg.filename_format || "{summary}");
   const filename = fmt
     .replace("{date}", dateStr)
     .replace("{author}", authorClean)

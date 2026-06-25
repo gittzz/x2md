@@ -35,7 +35,9 @@ await createTray({
   },
 });
 
-if (!loadConfig(appDir).setup_completed) await showSettingsWindow(appDir, server.port);
+if (!loadConfig(appDir).setup_completed || process.argv.includes("--settings")) {
+  await showSettingsWindow(appDir, server.port);
+}
 
 process.on("SIGINT", async () => {
   await server.stop();

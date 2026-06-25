@@ -38,8 +38,8 @@ export const DEFAULT_CONFIG: X2MDConfig = {
   port: 9527,
   save_paths: [join(HOME, "Desktop", "X2MD", "MD")],
   custom_save_paths: [],
-  filename_format: "{summary}_{date}_{author}",
-  max_filename_length: 60,
+  filename_format: "{summary}",
+  max_filename_length: 100,
   video_save_path: join(HOME, "Desktop", "X2MD", "Videos"),
   enable_video_download: true,
   video_duration_threshold: 5,
@@ -61,9 +61,10 @@ function boolValue(value: unknown, fallback: boolean): boolean {
   return Boolean(value);
 }
 
-function numberValue(value: unknown, fallback: number, min = 1): number {
+function numberValue(value: unknown, fallback: number, min = 1, max = Number.POSITIVE_INFINITY): number {
   const n = Number(value);
-  return Number.isFinite(n) && n >= min ? n : fallback;
+  if (!Number.isFinite(n) || n < min) return fallback;
+  return Math.min(n, max);
 }
 
 export function getAppDir(): string {
@@ -96,7 +97,7 @@ export function normalizeConfig(raw: Record<string, unknown> = {}): X2MDConfig {
   cfg.video_save_path = String(cfg.video_save_path || "").trim() || DEFAULT_CONFIG.video_save_path;
   cfg.profile_capture_save_path = String(cfg.profile_capture_save_path || "").trim();
   cfg.custom_save_paths = normalizeCustomSavePaths(cfg);
-  cfg.max_filename_length = numberValue(cfg.max_filename_length, DEFAULT_CONFIG.max_filename_length);
+  cfg.max_filename_length = numberValue(cfg.max_filename_length, DEFAULT_CONFIG.max_filename_length, 20, 180);
   cfg.video_duration_threshold = numberValue(cfg.video_duration_threshold, DEFAULT_CONFIG.video_duration_threshold, 0);
   cfg.profile_capture_custom_days = numberValue(cfg.profile_capture_custom_days, DEFAULT_CONFIG.profile_capture_custom_days);
   cfg.setup_completed = cfg.save_paths.length > 0 && (oldConfigHasSavePath || boolValue(cfg.setup_completed, DEFAULT_CONFIG.setup_completed));

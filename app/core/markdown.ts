@@ -37,6 +37,22 @@ export function applyTranslationOverride(data: Record<string, any>): Record<stri
   return result;
 }
 
+
+function stripLeadingSourceUrl(value: unknown, sourceUrl: unknown): string {
+  const text = String(value ?? "").trim();
+  const url = String(sourceUrl ?? "").trim();
+  if (!/^(https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\//.test(url)) return text;
+  const firstBreak = text.search(/\r?\n/);
+  const firstLine = (firstBreak >= 0 ? text.slice(0, firstBreak) : text).trim();
+  if (!firstLine) return text;
+  const normalizedFirst = firstLine.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  const normalizedUrl = url.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  const firstId = firstLine.match(/\/(?:i\/)?article\/(\d+)/)?.[1];
+  const sourceId = url.match(/\/status\/(\d+)/)?.[1] || url.match(/\/(?:i\/)?article\/(\d+)/)?.[1];
+  if (!normalizedFirst || (!normalizedUrl.includes(normalizedFirst) && firstId !== sourceId)) return text;
+  return text.slice(firstBreak >= 0 ? firstBreak : text.length).trimStart();
+}
+
 function compactAlt(value: unknown): string {
   return String(value ?? "").split(/\s+/).filter(Boolean).join(" ").trim();
 }
@@ -188,13 +204,14 @@ tags: []
   if (contentType === "article") {
     let textResult = "";
     if (articleContent) {
-      textResult = String(articleContent).trim();
+      textResult = stripLeadingSourceUrl(articleContent, url);
       for (const [videoUrl, mdRef] of Object.entries(videoMap)) {
         textResult = textResult.replaceAll(`[MEDIA_VIDEO_URL:${videoUrl}]`, mdRef);
       }
       lines.push(textResult);
     }
     appendUnusedVideos(lines, textResult);
+    appendQuoteTweet(lines, quoteTweet);
   } else {
     let textResult = String(text).trim();
     for (const [videoUrl, mdRef] of Object.entries(videoMap)) {

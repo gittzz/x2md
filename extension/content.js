@@ -218,14 +218,14 @@ function findFirstStatusUrl(container) {
     return "";
 }
 
-function extractQuoteTweetBasic(article) {
-    const quote = article?.querySelector?.('[data-testid="simpleTweet"]');
+function buildQuoteTweetPayload(quote) {
     if (!quote) return null;
 
-    const text = quote.querySelector('[data-testid="tweetText"]')?.innerText?.trim() || "";
+    const cardTarget = getTwitterArticleCardTranslationTarget(quote);
+    const text = (quote.querySelector?.('[data-testid="tweetText"]')?.innerText?.trim() || cardTarget?.text || "").trim();
     const images = [];
     const image_alt_texts = {};
-    quote.querySelectorAll('[data-testid="tweetPhoto"] img, img').forEach((img) => {
+    quote.querySelectorAll?.('[data-testid="tweetPhoto"] img, img').forEach((img) => {
         const src = img.src || img.getAttribute("src") || "";
         if (!src.includes("pbs.twimg.com") || src.includes("profile_images") || src.includes("emoji")) return;
         const parentLink = img.closest('a[href*="/status/"]');
@@ -238,9 +238,29 @@ function extractQuoteTweetBasic(article) {
         collectImageAltText(image_alt_texts, src, img);
     });
 
-    const url = findFirstStatusUrl(quote);
+    const url = findFirstStatusUrl(quote) || cardTarget?.url || "";
     if (!text && images.length === 0 && !url) return null;
     return { text, images, image_alt_texts, videos: [], url };
+}
+
+function extractRelatedTweetAfterArticleBasic(sourceUrl = "") {
+    const body = getTwitterArticleBodyContainer(document);
+    const articles = [...document.querySelectorAll('article, [role="article"]')];
+    const sourceId = sourceUrl.match(/\/status\/(\d+)/)?.[1] || "";
+    const startIndex = Math.max(0, articles.findIndex((item) => item.contains(body)));
+
+    for (const item of articles.slice(startIndex + 1, startIndex + 4)) {
+        const url = findFirstStatusUrl(item);
+        if (!url || (sourceId && url.includes(`/status/${sourceId}`))) continue;
+        const payload = buildQuoteTweetPayload(item);
+        if (payload) return payload;
+    }
+    return null;
+}
+
+function extractQuoteTweetBasic(article) {
+    const quote = article?.querySelector?.('[data-testid="simpleTweet"]');
+    return buildQuoteTweetPayload(quote);
 }
 
 // ─────────────────────────────────────────────
@@ -444,6 +464,7 @@ function detectAndExtractArticle() {
         images: extractedImages,
         image_alt_texts: extractImageAltTexts(bodyContainer),
         videos: finalVideos,
+        quote_tweet: extractQuoteTweetBasic(document) || extractRelatedTweetAfterArticleBasic(sourceUrl),
         graphql_operation_ids: extractDiscoveredGraphQLOperationIds(),
     };
 }

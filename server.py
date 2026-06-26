@@ -183,6 +183,23 @@ def normalize_image_url(url: str) -> str:
     return urlunparse(parsed._replace(query=new_query))
 
 
+
+def strip_leading_source_url(value: str, source_url: str) -> str:
+    text = str(value or "").strip()
+    url = str(source_url or "").strip()
+    if not re.match(r"^(https?://)?(?:www\.)?(?:x|twitter)\.com/", url):
+        return text
+    parts = re.split(r"\r?\n", text, maxsplit=1)
+    first_line = parts[0].strip()
+    if not first_line:
+        return text
+    normalize = lambda item: re.sub(r"/$", "", re.sub(r"^www\.", "", re.sub(r"^https?://", "", item.strip())))
+    first_id = re.search(r"/(?:i/)?article/(\d+)", first_line)
+    source_id = re.search(r"/status/(\d+)", url) or re.search(r"/(?:i/)?article/(\d+)", url)
+    if normalize(first_line) and (normalize(first_line) in normalize(url) or (first_id and source_id and first_id.group(1) == source_id.group(1))):
+        return parts[1].lstrip() if len(parts) > 1 else ""
+    return text
+
 def sanitize_filename(name: str, max_len: int = 60) -> str:
     """清理文件名中的非法字符"""
     name = re.sub(r'[\\/:*?"<>|]', "_", name)
@@ -831,13 +848,14 @@ tags: []
         # X Article：直接输出正文（已由 content.js 转换为 Markdown 段落）
         text_result = ""
         if article_content:
-            text_result = article_content.strip()
+            text_result = strip_leading_source_url(article_content, url)
             for v_url, md_ref in vid_map.items():
                 target = f"[MEDIA_VIDEO_URL:{v_url}]"
                 text_result = text_result.replace(target, md_ref)
             lines.append(text_result)
 
         append_unused_videos(lines, text_result)
+        append_quote_tweet(lines, quote_tweet)
     else:
         # 普通推文：只输出推文原文
         text_result = text.strip()

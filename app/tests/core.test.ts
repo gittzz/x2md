@@ -78,6 +78,26 @@ test("Article 正文顺序保持，不补 dump 已缺失图片", () => {
   assert.doesNotMatch(content, /missing\.jpg/);
 });
 
+test("Article 正文首行清理误混入的原文 URL，并保留引用推文", () => {
+  const [, content] = buildMarkdown({
+    type: "article",
+    article_title: "LOOP 基础使用方法",
+    article_content: "x.com/i/article/2069019238283849954\n\n正文第一段",
+    url: "https://x.com/Easycompany333/status/2069019238283849954",
+    handle: "@Easycompany333",
+    quote_tweet: {
+      text: "新手小白最好的Codex实践\n大多数人第一次打开 Codex",
+      url: "https://x.com/Easycompany333/status/2068942917306347536",
+    },
+  }, baseCfg);
+
+  const body = content.split("---\n").at(-1) || "";
+  assert.doesNotMatch(body.trimStart(), /^x\.com\/i\/article/);
+  assert.match(body, /正文第一段/);
+  assert.match(body, /> \[!quote\] 引用推文/);
+  assert.match(body, /新手小白最好的Codex实践/);
+});
+
 test("视频下载开始和完成写入日志", async () => {
   const appDir = mkdtempSync(join(tmpdir(), "x2md-video-log-"));
   const videoDir = mkdtempSync(join(tmpdir(), "x2md-video-dir-"));

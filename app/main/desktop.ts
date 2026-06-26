@@ -56,6 +56,14 @@ export function settingsHtml(port: number | string, executable = process.execPat
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>X2MD 设置</title><style>body{font:16px -apple-system,BlinkMacSystemFont,sans-serif;padding:32px;color:#111}code{background:#eee;padding:2px 4px;border-radius:4px}</style></head><body><h1>X2MD 设置</h1><p>设置页资源未找到，请重新安装 X2MD。</p><p><code>${settingsRoot}</code></p></body></html>`;
 }
 
+export function settingsWindowOptions(port: number | string, executable = process.execPath): { html: string; viewsRoot: string } {
+  const viewsRoot = settingsViewsRootForExecutable(executable);
+  return {
+    html: settingsHtml(port, executable),
+    viewsRoot,
+  };
+}
+
 export async function showSettingsWindow(appDir = getAppDir(), port?: number): Promise<void> {
   try {
     const { BrowserWindow } = await import("electrobun/bun");
@@ -72,19 +80,16 @@ export async function showSettingsWindow(appDir = getAppDir(), port?: number): P
       }
     }
 
-    const viewsRoot = settingsViewsRootForExecutable();
-    const entry = join(viewsRoot, "settings", "index.html");
-    const hasPackagedView = existsSync(entry);
-    const windowOptions = hasPackagedView
-      ? { url: settingsUrl(appDir, configuredPort), viewsRoot }
-      : { html: settingsHtml(configuredPort), viewsRoot };
-
-    settingsWindow = new BrowserWindow({
+    const window = new BrowserWindow({
       title: "X2MD 设置",
-      ...windowOptions,
+      ...settingsWindowOptions(configuredPort),
       frame: { x: 120, y: 120, width: 980, height: 720 },
     });
-    log(`设置页已打开：${hasPackagedView ? "views" : "inline"} viewsRoot=${viewsRoot}`, appDir);
+    settingsWindow = window;
+    settingsWindow.on?.("close", () => {
+      if (settingsWindow === window) settingsWindow = null;
+    });
+    log(`设置页已打开：inline viewsRoot=${settingsViewsRootForExecutable()}`, appDir);
   } catch (error) {
     log(`设置页打开失败：${error instanceof Error ? error.message : String(error)}`, appDir);
     console.log("设置页需要在 Electrobun 运行时打开：http://127.0.0.1:9527/config");

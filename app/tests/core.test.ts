@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { resolveSavePathsForRequest, normalizeConfig, cliArg, saveConfig, logPath } from "../core/config.ts";
 import { buildLaunchAgentPlist, LABEL, LEGACY_LABEL, plistPath, programArgumentsForExecutable, setAutostartEnabled } from "../main/autostart.ts";
-import { bundledExtensionDirForExecutable, inlineSettingsHtml, settingsUrl, settingsViewsRootForExecutable } from "../main/desktop.ts";
+import { bundledExtensionDirForExecutable, inlineSettingsHtml, settingsUrl, settingsViewsRootForExecutable, settingsWindowOptions } from "../main/desktop.ts";
 import { handleTrayAction, trayMenuItems } from "../main/tray.ts";
 import { buildMarkdown } from "../core/markdown.ts";
 import { sanitizeFilename } from "../core/filenames.ts";
@@ -292,6 +292,13 @@ test("设置页 HTML 内联样式和脚本，避免 views scheme 空白", () => 
   assert.match(html, /document\.body\.dataset\.ready/);
   assert.doesNotMatch(html, /href="styles\.css"/);
   assert.doesNotMatch(html, /src="settings\.js"/);
+});
+
+test("设置窗口使用内联 HTML，不直接加载 views:// 页面", () => {
+  const options = settingsWindowOptions(19001, "/usr/local/bin/node");
+  assert.equal("url" in options, false);
+  assert.equal(typeof options.html, "string");
+  assert.equal(options.viewsRoot, settingsViewsRootForExecutable("/usr/local/bin/node"));
 });
 
 test("打包 App 内设置页 views root 解析到 Contents/Resources/app/views", () => {

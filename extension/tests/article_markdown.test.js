@@ -229,6 +229,38 @@ test("extractArticleMarkdown skips X article promo and action chrome", () => {
 });
 
 
+test("extractArticleMarkdown preserves embedded X quote tweet position in article flow", () => {
+    const quote = elementNode("div", {
+        attrs: { "data-testid": "simpleTweet" },
+        style: { display: "block" },
+        children: [
+            elementNode("a", {
+                attrs: { href: "/app_sail/status/2071975700824011104" },
+                children: [textNode("6月30日")],
+            }),
+            elementNode("div", {
+                attrs: { "data-testid": "tweetText" },
+                children: [textNode("破案了？")],
+            }),
+        ],
+    });
+    const tree = elementNode("div", {
+        attrs: { "data-testid": "twitterArticleReadView" },
+        style: { display: "block" },
+        children: [
+            elementNode("p", { children: [textNode("前文第二段")] }),
+            quote,
+            elementNode("p", { children: [textNode("后文继续")] }),
+        ],
+    });
+
+    const markdown = extractArticleMarkdown(tree, { getComputedStyle });
+
+    assert.ok(markdown.indexOf("前文第二段") < markdown.indexOf("> [!quote] 引用推文"));
+    assert.ok(markdown.indexOf("> [!quote] 引用推文") < markdown.indexOf("后文继续"));
+    assert.match(markdown, /原文：https:\/\/x\.com\/app_sail\/status\/2071975700824011104/);
+});
+
 test("extractArticleMarkdown formats embedded X quote tweet without engagement metadata", () => {
     const tree = elementNode("div", {
         attrs: { "data-testid": "simpleTweet" },

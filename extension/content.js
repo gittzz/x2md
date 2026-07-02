@@ -342,17 +342,18 @@ function detectAndExtractArticle() {
     const timeEl = document.querySelector("time");
     const published = timeEl ? timeEl.getAttribute("datetime") : "";
 
-    // ── 文章正文容器（优先 Twitter Note 专用 testid）─
+    // ── 文章正文容器（优先完整阅读流，保留嵌入引用推文的原始位置）─
     // 严格限制：只尝试抓取 Note 核心流，决不回退到普通的 <article> 避免将转赞评抓入。
+    const readContainer = document.querySelector('[data-testid="twitterArticleReadView"]');
     const bodyContainer =
         document.querySelector('[data-testid="twitterArticleRichTextView"]') ||
         document.querySelector('[data-testid="longformRichTextComponent"]') ||
-        document.querySelector('[data-testid="twitterArticleReadView"]') ||
+        readContainer ||
         document.querySelector('[data-testid="article-content"]');
 
     if (!bodyContainer) return null; // 无法定位专有正文容器时直接放弃，让背景去真实页面解析
 
-    const extractionContainer = bodyContainer;
+    const extractionContainer = readContainer || bodyContainer;
     let article_content = "";
     try {
         article_content = extractArticleMarkdown(extractionContainer);

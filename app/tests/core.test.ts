@@ -78,6 +78,32 @@ test("Article 正文顺序保持，不补 dump 已缺失图片", () => {
   assert.doesNotMatch(content, /missing\.jpg/);
 });
 
+test("Article 正文内联引用推文保持原位且不追加到末尾", () => {
+  const [, content] = buildMarkdown({
+    type: "article",
+    article_title: "Claude Code 最新防封号完全指南（2026 年 7 月）",
+    article_content: `前文第二段
+
+> [!quote] 引用推文
+> 破案了？
+>
+> 原文：https://x.com/app_sail/status/2071975700824011104
+
+后文继续`,
+    url: "https://x.com/app_sail/status/2072494971643715658",
+    handle: "@app_sail",
+    quote_tweet: {
+      text: "破案了？",
+      url: "https://x.com/app_sail/status/2071975700824011104",
+    },
+  }, baseCfg);
+
+  const body = content.split("---\n").at(-1) || "";
+  assert.ok(body.indexOf("前文第二段") < body.indexOf("> [!quote] 引用推文"));
+  assert.ok(body.indexOf("> [!quote] 引用推文") < body.indexOf("后文继续"));
+  assert.equal((body.match(/> \[!quote\] 引用推文/g) || []).length, 1);
+});
+
 test("Article 正文首行清理误混入的原文 URL，并保留引用推文", () => {
   const [, content] = buildMarkdown({
     type: "article",

@@ -211,7 +211,7 @@ tags: []
       lines.push(textResult);
     }
     appendUnusedVideos(lines, textResult);
-    appendQuoteTweet(lines, quoteTweet);
+    if (!/>\s*\[!quote\]\s*引用推文/.test(textResult)) appendQuoteTweet(lines, quoteTweet);
   } else {
     let textResult = String(text).trim();
     for (const [videoUrl, mdRef] of Object.entries(videoMap)) {

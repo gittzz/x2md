@@ -78,6 +78,28 @@ test("Article 正文顺序保持，不补 dump 已缺失图片", () => {
   assert.doesNotMatch(content, /missing\.jpg/);
 });
 
+test("Article 正文内联视频已渲染时不在末尾重复追加", () => {
+  const videoUrl = "https://video.twimg.com/ext_tw_video/123/pu/vid/720x1280/a.mp4";
+  const [, content] = buildMarkdown({
+    type: "article",
+    article_title: "Article with inline video",
+    article_content: `第一段
+
+[MEDIA_VIDEO_URL:${videoUrl}]
+
+第二段`,
+    url: "https://x.com/a/status/1",
+    handle: "@alice",
+    videos: [videoUrl],
+    download_video: false,
+  }, baseCfg);
+
+  const body = content.split("---\n").at(-1) || "";
+  assert.ok(body.indexOf("第一段") < body.indexOf("推特媒体：点击播放视频"));
+  assert.ok(body.indexOf("推特媒体：点击播放视频") < body.indexOf("第二段"));
+  assert.equal((body.match(/推特媒体：点击播放视频/g) || []).length, 1);
+});
+
 test("Article 正文内联引用推文保持原位且不追加到末尾", () => {
   const [, content] = buildMarkdown({
     type: "article",

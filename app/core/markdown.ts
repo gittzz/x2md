@@ -163,7 +163,11 @@ tags: []
 
   const appendUnusedVideos = (linesList: string[], contentText: string) => {
     if (!videos.length) return;
-    const unused = videos.filter((v) => !String(contentText || "").includes(`[MEDIA_VIDEO_URL:${v}]`));
+    const content = String(contentText || "");
+    const unused = videos.filter((v) => {
+      const rendered = videoMap[v] || "";
+      return !content.includes(`[MEDIA_VIDEO_URL:${v}]`) && (!rendered || !content.includes(rendered));
+    });
     if (!unused.length) return;
     linesList.push("");
     for (const v of unused) linesList.push(videoMap[v]);
